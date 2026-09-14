@@ -1,0 +1,290 @@
+{
+  "model_type": "Gradient Boosting",
+  "total_samples": 10000,
+  "test_samples": 2000,
+  "features": [
+    "hour",
+    "day_of_week",
+    "is_weekend",
+    "is_night",
+    "is_rush_hour",
+    "historical_crime_rate",
+    "violent_crime_count",
+    "theft_count",
+    "robbery_count",
+    "recent_crime_count",
+    "crime_density",
+    "street_light_density",
+    "road_type",
+    "road_isolation",
+    "pedestrian_access",
+    "public_transit_distance",
+    "police_station_distance",
+    "hospital_distance",
+    "emergency_service_distance",
+    "business_density",
+    "pedestrian_activity",
+    "population_density",
+    "rainfall",
+    "visibility",
+    "temperature",
+    "weather_severity"
+  ],
+  "metrics": {
+    "mae": 2.891,
+    "rmse": 3.626,
+    "r2": 0.879,
+    "accuracy": 85.65,
+    "f1_score": 0.856
+  },
+  "models_comparison": [
+    {
+      "name": "Ridge Regression",
+      "mae": 2.984,
+      "rmse": 3.771,
+      "r2": 0.869,
+      "accuracy": 86.0,
+      "f1_score": 0.859,
+      "confusion_matrix": [
+        [
+          661,
+          125,
+          0,
+          0,
+          0
+        ],
+        [
+          101,
+          956,
+          13,
+          0,
+          0
+        ],
+        [
+          0,
+          37,
+          98,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          4,
+          5,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "Random Forest",
+      "mae": 2.998,
+      "rmse": 3.768,
+      "r2": 0.87,
+      "accuracy": 85.15,
+      "f1_score": 0.851,
+      "confusion_matrix": [
+        [
+          666,
+          120,
+          0,
+          0,
+          0
+        ],
+        [
+          122,
+          937,
+          11,
+          0,
+          0
+        ],
+        [
+          0,
+          40,
+          95,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          4,
+          5,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "Gradient Boosting",
+      "mae": 2.891,
+      "rmse": 3.626,
+      "r2": 0.879,
+      "accuracy": 85.65,
+      "f1_score": 0.856,
+      "confusion_matrix": [
+        [
+          665,
+          121,
+          0,
+          0,
+          0
+        ],
+        [
+          111,
+          945,
+          14,
+          0,
+          0
+        ],
+        [
+          0,
+          37,
+          98,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          4,
+          5,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    }
+  ],
+  "feature_importance": [
+    {
+      "feature": "historical_crime_rate",
+      "importance": 44.52
+    },
+    {
+      "feature": "is_night",
+      "importance": 25.63
+    },
+    {
+      "feature": "street_light_density",
+      "importance": 9.7
+    },
+    {
+      "feature": "crime_density",
+      "importance": 5.39
+    },
+    {
+      "feature": "road_isolation",
+      "importance": 4.71
+    },
+    {
+      "feature": "recent_crime_count",
+      "importance": 3.33
+    },
+    {
+      "feature": "pedestrian_activity",
+      "importance": 3.05
+    },
+    {
+      "feature": "police_station_distance",
+      "importance": 0.91
+    },
+    {
+      "feature": "rainfall",
+      "importance": 0.4
+    },
+    {
+      "feature": "business_density",
+      "importance": 0.34
+    },
+    {
+      "feature": "emergency_service_distance",
+      "importance": 0.24
+    },
+    {
+      "feature": "public_transit_distance",
+      "importance": 0.24
+    },
+    {
+      "feature": "temperature",
+      "importance": 0.23
+    },
+    {
+      "feature": "hospital_distance",
+      "importance": 0.23
+    },
+    {
+      "feature": "population_density",
+      "importance": 0.21
+    },
+    {
+      "feature": "visibility",
+      "importance": 0.18
+    },
+    {
+      "feature": "weather_severity",
+      "importance": 0.14
+    },
+    {
+      "feature": "pedestrian_access",
+      "importance": 0.12
+    },
+    {
+      "feature": "hour",
+      "importance": 0.12
+    },
+    {
+      "feature": "theft_count",
+      "importance": 0.08
+    },
+    {
+      "feature": "road_type",
+      "importance": 0.08
+    },
+    {
+      "feature": "violent_crime_count",
+      "importance": 0.05
+    },
+    {
+      "feature": "day_of_week",
+      "importance": 0.05
+    },
+    {
+      "feature": "robbery_count",
+      "importance": 0.05
+    },
+    {
+      "feature": "is_rush_hour",
+      "importance": 0.01
+    },
+    {
+      "feature": "is_weekend",
+      "importance": 0.0
+    }
+  ],
+  "categories": [
+    "Very Low",
+    "Low",
+    "Moderate",
+    "High",
+    "Very High"
+  ]
+}

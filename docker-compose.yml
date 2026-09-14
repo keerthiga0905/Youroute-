@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./saferoute.db
+      - JWT_SECRET=saferoute_super_secret_key_2026
+      - DEMO_MODE=true
+    volumes:
+      - ./backend/app/ml/saved_models:/app/app/ml/saved_models
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend

@@ -1,0 +1,15 @@
+{
+  "name": "saferoute-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SafeRoute AI - Personal Safety Risk Predictor & Route Engine",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "backend": "py -3.14 -m uvicorn app.main:app --reload --port 8000 --app-dir backend"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}
