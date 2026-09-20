@@ -154,22 +154,16 @@ class RouteService:
                 "legs": []
             })
 
-        # 3. SORT ROUTES BY DISTANCE (Shortest to Longest) — MANDATORY PROMPT REQUIREMENT
+        # 3. SORT ROUTES BY DISTANCE (Shortest to Longest for display order)
         candidate_routes.sort(key=lambda x: x["distance_km"])
         candidate_routes = candidate_routes[:4]
 
-
-        # 4. Color Code Assignment Based on Distance Rank:
-        # Rank 1: GREEN (Shortest)
-        # Rank 2: YELLOW (Second Shortest)
-        # Rank 3: ORANGE (Third)
-        # Rank 4+: RED (Longest)
-        color_scheme = [
-            {"badge": "Shortest", "badge_color": "green", "color_code": "#10b981"},
-            {"badge": "Alternative", "badge_color": "yellow", "color_code": "#eab308"},
-            {"badge": "Alternative", "badge_color": "orange", "color_code": "#f97316"},
-            {"badge": "Longest", "badge_color": "red", "color_code": "#ef4444"}
-        ]
+        # Determine note if fewer than 4 distinct routes exist
+        route_count_note = None
+        if len(candidate_routes) == 1:
+            route_count_note = "No additional distinct road alternatives were available for this journey."
+        elif len(candidate_routes) < 4:
+            route_count_note = f"Only {len(candidate_routes)} distinct routes were found for this journey."
 
         db = SessionLocal()
         parsed_routes = []
@@ -187,7 +181,6 @@ class RouteService:
 
             for rank_idx, cand in enumerate(candidate_routes):
                 r_id = f"route_{rank_idx + 1}"
-                c_info = color_scheme[min(rank_idx, len(color_scheme) - 1)]
 
                 dist_km = cand["distance_km"]
                 dur_mins = cand["duration_mins"]
@@ -257,7 +250,7 @@ class RouteService:
 
                     if seg_risk <= 35:
                         seg_level = "lower"
-                        seg_label = "Lower Predicted Risk"
+                        seg_label = "Lower Risk"
                         reasons = ["Good illumination coverage", "Low historical incident density"]
                     elif seg_risk <= 55:
                         seg_level = "moderate"
@@ -288,38 +281,57 @@ class RouteService:
 
                 avg_risk = round(total_risk_score / len(segments), 1) if segments else 30.0
 
+                # ROUTE COLOR CODING BASED ON DISTANCE / LENGTH (User Requirement)
+                # Rank 0 = Shortest Route -> GREEN (#10b981)
+                # Rank 1..N-2 = Medium Route -> YELLOW / ORANGE (#eab308 / #f97316)
+                # Rank N-1 = Longest Route -> RED (#ef4444)
+                num_total_candidates = len(candidate_routes)
+                if rank_idx == 0:
+                    distance_badge_text = "Shortest Route"
+                    route_color = "#10b981" # Green
+                    badge_color_name = "green"
+                elif rank_idx == num_total_candidates - 1 and num_total_candidates > 1:
+                    distance_badge_text = "Longest Route"
+                    route_color = "#ef4444" # Red
+                    badge_color_name = "red"
+                elif rank_idx == 1 and num_total_candidates > 2:
+                    distance_badge_text = "Medium Route"
+                    route_color = "#eab308" # Yellow
+                    badge_color_name = "yellow"
+                else:
+                    distance_badge_text = f"Medium Route ({rank_idx + 1})"
+                    route_color = "#f97316" # Orange
+                    badge_color_name = "orange"
+
+                # Safety Risk classification (Level & Label for Risk Badge)
                 if avg_risk <= 35:
                     route_safety_label = "Lower Risk"
                     route_risk_level = "lower"
-                    route_safety_color = "#10b981"
                 elif avg_risk <= 55:
                     route_safety_label = "Moderate Risk"
                     route_risk_level = "moderate"
-                    route_safety_color = "#eab308"
                 elif avg_risk <= 75:
                     route_safety_label = "Elevated Risk"
                     route_risk_level = "elevated"
-                    route_safety_color = "#f97316"
                 else:
                     route_safety_label = "Higher Risk"
                     route_risk_level = "higher"
-                    route_safety_color = "#ef4444"
 
                 formatted_route = {
                     "id": r_id,
-                    "name": f"Route {rank_idx + 1} ({c_info['badge']})",
+                    "name": f"Route {rank_idx + 1} ({distance_badge_text})",
                     "rank_order": rank_idx + 1,
                     "distance_km": dist_km,
                     "duration_mins": dur_mins,
-                    "badge_text": c_info["badge"],
-                    "badge_color": c_info["badge_color"],
-                    "color_code": c_info["color_code"],
-                    "distance_badge_text": c_info["badge"],
-                    "distance_color_code": c_info["color_code"],
+                    "badge_text": distance_badge_text,
+                    "badge_color": badge_color_name,
+                    "color_code": route_color,
+                    "distance_badge_text": distance_badge_text,
+                    "distance_color_code": route_color,
                     "safety_score": avg_risk,
                     "safety_label": route_safety_label,
                     "risk_level": route_risk_level,
-                    "safety_color_code": route_safety_color,
+                    "safety_color_code": route_color,
                     "confidence_level": "High",
                     "path": [{"lat": pt[1], "lng": pt[0]} for pt in coords],
                     "segments": segments,
@@ -329,6 +341,7 @@ class RouteService:
                         "lighting_data": "Verified OpenStreetMap Highway Lighting",
                         "accident_data": f"{len(accidents_in_area)} localized TN blackspot records checked",
                         "key_factors": [
+                            f"Length classification: {distance_badge_text}",
                             "Street-light coverage verified on major stretches",
                             f"Crime safety index rating: {crime_rating}/100",
                             "Real road network geometry from OSRM engine"
@@ -343,6 +356,7 @@ class RouteService:
                 "destination": {"name": destination_name, "lat": d_lat, "lng": d_lng},
                 "routes": parsed_routes,
                 "total_routes_discovered": len(parsed_routes),
+                "route_count_note": route_count_note,
                 "data_sources": [
                     "Tamil Nadu SCRB District Crime Data 2023-2024",
                     "MoRTH Highway Accident Blackspot Database",

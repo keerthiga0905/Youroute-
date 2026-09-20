@@ -120,6 +120,7 @@ class RouteAnalyzeResponse(BaseModel):
     destination: Optional[Dict[str, Any]] = None
     routes: List[RouteOptionConsumer] = []
     total_routes_discovered: Optional[int] = 0
+    route_count_note: Optional[str] = None
     data_sources: Optional[List[str]] = []
 
 # --- Reroute Schema ---

@@ -139,3 +139,9 @@ export const deleteUserAccount = async () => {
   localStorage.removeItem('saferoute_token');
   return response.data;
 };
+
+export const getTrafficPrediction = async (lat: number, lng: number, district?: string) => {
+  const response = await api.get('/safety/traffic-prediction', { params: { lat, lng, district } });
+  return response.data;
+};
+
