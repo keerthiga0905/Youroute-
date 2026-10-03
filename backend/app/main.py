@@ -4,7 +4,7 @@ from app.core.config import settings
 from app.core.database import engine, Base
 from app.database import models
 from app.database.tn_safety_data_seeder import run_seeder
-from app.api import auth, routes, trips, saved_places, emergency, weather, model, geocode, safety, navigation, admin
+from app.api import auth, routes, trips, saved_places, emergency, weather, model, geocode, safety, navigation, admin, family
 
 # Initialize Database tables and seed datasets
 Base.metadata.create_all(bind=engine)
@@ -40,6 +40,7 @@ app.include_router(saved_places.router, prefix=settings.API_V1_STR)
 app.include_router(emergency.router, prefix=settings.API_V1_STR)
 app.include_router(weather.router, prefix=settings.API_V1_STR)
 app.include_router(model.router, prefix=settings.API_V1_STR)
+app.include_router(family.router, prefix=settings.API_V1_STR)
 
 
 @app.get("/api/health")

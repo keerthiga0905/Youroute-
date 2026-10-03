@@ -1,12 +1,13 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Shield, Navigation, Compass, Bookmark, User as UserIcon } from 'lucide-react';
+import { Shield, Navigation, Compass, Bookmark, User as UserIcon, Users } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const location = useLocation();
 
   const desktopNavLinks = [
     { path: '/', label: 'Plan Route', icon: Navigation },
+    { path: '/family-safety', label: 'Family Safety', icon: Users },
     { path: '/trips', label: 'My Trips', icon: Compass },
     { path: '/saved', label: 'Saved Places', icon: Bookmark },
     { path: '/profile', label: 'Profile', icon: UserIcon },

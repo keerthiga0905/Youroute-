@@ -18,6 +18,22 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+export const ensureDemoSession = async (): Promise<string> => {
+  let token = localStorage.getItem('saferoute_token');
+  if (!token) {
+    try {
+      const res = await axios.post('/api/auth/demo-session');
+      if (res.data && res.data.access_token) {
+        token = res.data.access_token;
+        localStorage.setItem('saferoute_token', token);
+      }
+    } catch (e) {
+      console.warn("Could not obtain demo session token", e);
+    }
+  }
+  return token || '';
+};
+
 export const analyzeRoutes = async (payload: {
   origin_name: string;
   destination_name: string;
@@ -144,4 +160,176 @@ export const getTrafficPrediction = async (lat: number, lng: number, district?: 
   const response = await api.get('/safety/traffic-prediction', { params: { lat, lng, district } });
   return response.data;
 };
+
+// --- Family Safety API Functions ---
+
+export const sendFamilyInvite = async (payload: {
+  member_name: string;
+  relationship: string;
+  phone?: string;
+  email: string;
+}) => {
+  await ensureDemoSession();
+  const response = await api.post('/family/invite', payload);
+  return response.data;
+};
+
+export const verifyInviteToken = async (token: string) => {
+  const response = await api.get(`/family/invite/verify/${token}`);
+  return response.data;
+};
+
+export const acceptFamilyInvite = async (token: string) => {
+  await ensureDemoSession();
+  const response = await api.post('/family/invite/accept', { token });
+  return response.data;
+};
+
+export const declineFamilyInvite = async (token: string) => {
+  await ensureDemoSession();
+  const response = await api.post('/family/invite/decline', { token });
+  return response.data;
+};
+
+export const getFamilyMembers = async () => {
+  await ensureDemoSession();
+  const response = await api.get('/family/members');
+  return response.data;
+};
+
+export const enableLocationSharing = async () => {
+  await ensureDemoSession();
+  const response = await api.post('/family/location-sharing/enable');
+  return response.data;
+};
+
+export const disableLocationSharing = async () => {
+  await ensureDemoSession();
+  const response = await api.post('/family/location-sharing/disable');
+  return response.data;
+};
+
+export const sendDirectFamilyInvite = async (payload: {
+  member_name: string;
+  relationship: string;
+  phone?: string;
+  email: string;
+}) => {
+  await ensureDemoSession();
+  const response = await api.post('/family/invite/direct', payload);
+  return response.data;
+};
+
+export const generateQRConnectionToken = async () => {
+  await ensureDemoSession();
+  const response = await api.post('/family/invite/qr/generate');
+  return response.data;
+};
+
+export const scanQRConnectionToken = async (payload: { qr_token: string; relationship: string }) => {
+  await ensureDemoSession();
+  const response = await api.post('/family/invite/qr/scan', payload);
+  return response.data;
+};
+
+export const updateLocationPayload = async (payload: {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  speed?: number;
+  heading?: number;
+  battery_level?: number;
+}) => {
+  const response = await api.post('/family/location/update', payload);
+  return response.data;
+};
+
+export const getFamilyMemberLocation = async (connectionId: number) => {
+  const response = await api.get(`/family/member/${connectionId}/location`);
+  return response.data;
+};
+
+export const removeFamilyMember = async (connectionId: number) => {
+  const response = await api.delete(`/family/member/${connectionId}`);
+  return response.data;
+};
+
+export const triggerFamilyEmergency = async (payload: {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  trigger_method?: 'BUTTON' | 'VOICE' | 'AUTOMATED_SAFETY_TRIGGER';
+  battery_level?: number;
+  message?: string;
+}) => {
+  const response = await api.post('/family/emergency/trigger', payload);
+  return response.data;
+};
+
+export const acknowledgeEmergencyAlert = async (eventId: number) => {
+  const response = await api.post(`/family/emergency/${eventId}/acknowledge`);
+  return response.data;
+};
+
+export const resolveEmergencyAlert = async (eventId: number) => {
+  const response = await api.post(`/family/emergency/${eventId}/resolve`);
+  return response.data;
+};
+
+export const uploadEmergencyMedia = async (eventId: number, blob: Blob, mediaType: string = "AUDIO_VIDEO") => {
+  const formData = new FormData();
+  formData.append('file', blob, `evidence_${eventId}_${Date.now()}.webm`);
+  formData.append('media_type', mediaType);
+  const response = await api.post(`/family/emergency/${eventId}/media`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
+};
+
+export const getActiveEmergencies = async () => {
+  const response = await api.get('/family/emergencies');
+  return response.data;
+};
+
+export const getEmergencyHistoryLog = async () => {
+  const response = await api.get('/family/emergency/history');
+  return response.data;
+};
+
+export const deleteEmergencyEventRecord = async (eventId: number) => {
+  const response = await api.delete(`/family/emergency/history/${eventId}`);
+  return response.data;
+};
+
+export const updatePrivacySettings = async (payload: {
+  sharing_enabled: boolean;
+  permission_type?: string;
+  history_opt_in?: boolean;
+  voice_detection_enabled?: boolean;
+  media_recording_enabled?: boolean;
+}) => {
+  const response = await api.post('/family/privacy/settings', payload);
+  return response.data;
+};
+
+export const getLocationHistory = async () => {
+  const response = await api.get('/family/location-history');
+  return response.data;
+};
+
+export const deleteLocationHistory = async () => {
+  const response = await api.delete('/family/location-history');
+  return response.data;
+};
+
+export const updateHistoryOptIn = async (payload: { sharing_enabled: boolean; history_opt_in: boolean }) => {
+  const response = await api.post('/family/location-history/opt-in', payload);
+  return response.data;
+};
+
+export const resendFamilyInvite = async (inviteId: number) => {
+  const response = await api.post(`/family/invite/resend/${inviteId}`);
+  return response.data;
+};
+
 

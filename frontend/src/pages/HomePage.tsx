@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { geolocationService, GPSResult } from '../services/geolocationService';
 import { reverseGeocodeService } from '../services/reverseGeocodeService';
 import { placesService } from '../services/placesService';
 import { validateTNLocation } from '../services/geofenceService';
 import { LocationResult } from '../services/locationService';
-import { Shield, MapPin, Navigation, ArrowRight, Loader2, AlertCircle, LocateFixed, CheckCircle2 } from 'lucide-react';
+import { getFamilyMembers } from '../services/api';
+import { ConnectedFamilyMember } from '../types';
+import { Shield, MapPin, Navigation, ArrowRight, Loader2, AlertCircle, LocateFixed, CheckCircle2, Users } from 'lucide-react';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -27,6 +29,31 @@ export const HomePage: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [tnValidationError, setTnValidationError] = useState<string | null>(null);
+  const [connectedFamilyMembers, setConnectedFamilyMembers] = useState<ConnectedFamilyMember[]>([]);
+
+  useEffect(() => {
+    // Check if target family member was set from Family Safety module
+    const targetLat = sessionStorage.getItem('family_target_lat');
+    const targetLng = sessionStorage.getItem('family_target_lng');
+    const targetName = sessionStorage.getItem('family_target_name');
+
+    if (targetLat && targetLng && targetName) {
+      setDestInput(targetName);
+      setDestCoords({ lat: parseFloat(targetLat), lng: parseFloat(targetLng) });
+      sessionStorage.removeItem('family_target_lat');
+      sessionStorage.removeItem('family_target_lng');
+      sessionStorage.removeItem('family_target_name');
+    }
+
+    // Load active family members for quick selection
+    getFamilyMembers()
+      .then((data) => {
+        if (data.connected_members) {
+          setConnectedFamilyMembers(data.connected_members.filter((m: any) => m.sharing_enabled && m.latitude && m.longitude));
+        }
+      })
+      .catch((err) => console.log("Family members load info:", err));
+  }, []);
 
   // 1. Handle REAL Device Geolocation API
   const handleUseCurrentLocation = async () => {
@@ -442,10 +469,44 @@ export const HomePage: React.FC = () => {
 
             {/* STEP 2 — DESTINATION */}
             <div className="space-y-2 relative">
-              <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <Navigation className="w-4 h-4 text-red-600" />
-                <span>STEP 2 — DESTINATION</span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <Navigation className="w-4 h-4 text-red-600" />
+                  <span>STEP 2 — DESTINATION</span>
+                </label>
+              </div>
+
+              {/* Connected Family Member Target Pills */}
+              {connectedFamilyMembers.length > 0 && (
+                <div className="p-3 bg-red-50/70 border border-red-100 rounded-2xl space-y-1.5">
+                  <span className="text-[11px] font-extrabold text-red-700 flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5 text-red-600" /> Route to Connected Family Member:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {connectedFamilyMembers.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          if (m.latitude && m.longitude) {
+                            setDestInput(`${m.name}'s Location (${m.relationship})`);
+                            setDestCoords({ lat: m.latitude, lng: m.longitude });
+                          }
+                        }}
+                        className="py-1 px-3 bg-white hover:bg-red-600 hover:text-white border border-red-200 rounded-xl text-xs font-bold text-slate-800 transition flex items-center gap-1.5 shadow-sm"
+                      >
+                        <span>
+                          {m.relationship.toLowerCase().includes('father') ? '👨' :
+                           m.relationship.toLowerCase().includes('mother') ? '👩' :
+                           m.relationship.toLowerCase().includes('sibling') ? '👫' : '🧑'}
+                        </span>
+                        <span>{m.name}</span>
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <input
                 type="text"

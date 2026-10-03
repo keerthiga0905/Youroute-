@@ -200,3 +200,117 @@ class ModelMetricsResponse(BaseModel):
     metrics: Dict[str, float]
     models_comparison: List[Dict[str, Any]]
     feature_importance: List[Dict[str, Any]]
+
+# --- Family Safety Schemas ---
+class FamilyInviteCreate(BaseModel):
+    member_name: str
+    relationship: str
+    phone: Optional[str] = None
+    email: str
+
+class FamilyInviteResponse(BaseModel):
+    id: int
+    member_name: str
+    relationship: str
+    phone: Optional[str] = None
+    email: str
+    secure_token: str
+    invite_url: str
+    expires_at: datetime
+    created_at: datetime
+    status: str
+
+class InviteDetailsResponse(BaseModel):
+    token: str
+    requester_name: str
+    member_name: str
+    relationship: str
+    email: str
+    expires_at: datetime
+    status: str
+
+class InviteActionPayload(BaseModel):
+    token: str
+
+class LocationUpdatePayload(BaseModel):
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+    speed: Optional[float] = None
+    heading: Optional[float] = None
+    battery_level: Optional[int] = None
+    timestamp: Optional[str] = None
+
+class FamilyMemberResponse(BaseModel):
+    id: int
+    member_user_id: Optional[int] = None
+    name: str
+    relationship: str
+    email: str
+    phone: Optional[str] = None
+    profile_image: Optional[str] = None
+    status: str # PENDING, ACTIVE, DECLINED, REVOKED
+    sharing_enabled: bool
+    permission_type: Optional[str] = "ALWAYS"
+    location_status: str # Live, Stale, Offline, Sharing Disabled
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    accuracy: Optional[float] = None
+    speed: Optional[float] = None
+    battery_level: Optional[int] = None
+    last_updated: Optional[str] = None
+    sharing_started_at: Optional[str] = None
+    connection_id: Optional[int] = None
+    invite_token: Optional[str] = None
+    emergency_status: Optional[str] = "Normal"
+
+class FamilyEmergencyPayload(BaseModel):
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+    trigger_method: Optional[str] = "BUTTON" # BUTTON, VOICE, AUTOMATED_SAFETY_TRIGGER
+    battery_level: Optional[int] = None
+    message: Optional[str] = "🚨 SOS Emergency Alert Triggered!"
+
+class FamilyEmergencyAlertResponse(BaseModel):
+    id: int
+    user_id: int
+    user_name: str
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+    trigger_method: str
+    status: str # NORMAL, SOS_TRIGGERED, LOCATION_CAPTURED, FAMILY_NOTIFIED, EMERGENCY_ACTIVE, FAMILY_ACKNOWLEDGED, EMERGENCY_RESOLVED, EMERGENCY_CANCELLED
+    message: str
+    battery_level: Optional[int] = None
+    created_at: str
+    acknowledged_at: Optional[str] = None
+    resolved_at: Optional[str] = None
+    acknowledged_by: Optional[List[Dict[str, Any]]] = []
+    media_recordings: Optional[List[Dict[str, Any]]] = []
+
+class FamilyQRInviteResponse(BaseModel):
+    qr_token: str
+    expires_at: datetime
+    requester_name: str
+    requester_email: str
+
+class FamilyQRScanPayload(BaseModel):
+    qr_token: str
+    relationship: str
+
+class LocationHistoryItem(BaseModel):
+    id: int
+    latitude: float
+    longitude: float
+    place_name: Optional[str] = None
+    timestamp: str
+
+class LocationSharingSettingsPayload(BaseModel):
+    sharing_enabled: bool
+    permission_type: Optional[str] = "ALWAYS" # WHILE_USING, ALWAYS, PAUSED, DISABLED
+    history_opt_in: Optional[bool] = False
+    voice_detection_enabled: Optional[bool] = False
+    media_recording_enabled: Optional[bool] = True
+
+

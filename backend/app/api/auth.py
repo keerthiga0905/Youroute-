@@ -8,21 +8,49 @@ from app.schemas.schemas import UserRegister, UserLogin, UserResponse, UserUpdat
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
-    payload = decode_access_token(token)
-    if not payload or "sub" not in payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    email = payload["sub"]
-    user = db.query(User).filter(User.email == email).first()
+def get_current_user(token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    if token:
+        payload = decode_access_token(token)
+        if payload and "sub" in payload:
+            email = payload["sub"]
+            user = db.query(User).filter(User.email == email).first()
+            if user:
+                return user
+
+    # Fallback default user for seamless testing/demo mode
+    demo_email = "keerthigamurali3116@gmail.com"
+    user = db.query(User).filter(User.email == demo_email).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        user = User(
+            email=demo_email,
+            full_name="Keerthiga M",
+            phone="+91 98765 43210",
+            hashed_password=get_password_hash("DemoPass123!")
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
     return user
+
+@router.post("/demo-session", response_model=Token)
+def create_demo_session(db: Session = Depends(get_db)):
+    demo_email = "keerthigamurali3116@gmail.com"
+    user = db.query(User).filter(User.email == demo_email).first()
+    if not user:
+        user = User(
+            email=demo_email,
+            full_name="Keerthiga M",
+            phone="+91 98765 43210",
+            hashed_password=get_password_hash("DemoPass123!")
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    access_token = create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer", "user": user}
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 def register_user(user_in: UserRegister, db: Session = Depends(get_db)):

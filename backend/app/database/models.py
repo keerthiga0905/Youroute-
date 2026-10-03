@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean, JSON
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship as sa_relationship
 from datetime import datetime
 from app.core.database import Base
 
@@ -8,13 +8,15 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
+    phone = Column(String, nullable=True)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=True)
+    profile_image = Column(String, nullable=True)
     preferred_priority = Column(String, default="balanced")
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    histories = relationship("TripHistory", back_populates="user", cascade="all, delete-orphan")
-    saved_places = relationship("SavedPlace", back_populates="user", cascade="all, delete-orphan")
+    histories = sa_relationship("TripHistory", back_populates="user", cascade="all, delete-orphan")
+    saved_places = sa_relationship("SavedPlace", back_populates="user", cascade="all, delete-orphan")
 
 class Location(Base):
     __tablename__ = "locations"
@@ -41,7 +43,7 @@ class SavedPlace(Base):
     longitude = Column(Float, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    user = relationship("User", back_populates="saved_places")
+    user = sa_relationship("User", back_populates="saved_places")
 
 class RouteRecord(Base):
     __tablename__ = "routes"
@@ -180,7 +182,7 @@ class TripHistory(Base):
     selected_route_name = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    user = relationship("User", back_populates="histories")
+    user = sa_relationship("User", back_populates="histories")
 
 class DataSourceRecord(Base):
     __tablename__ = "data_sources"
@@ -230,4 +232,129 @@ class SafetyIncident(Base):
     is_demo = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+# --- Family Safety Module Models ---
+
+class FamilyConnection(Base):
+    __tablename__ = "family_connections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    requester_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    member_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    relationship = Column(String, nullable=False) # Father, Mother, Sibling, Spouse, Son, Daughter, Relative, Friend
+    status = Column(String, default="PENDING") # PENDING, ACTIVE, DECLINED, REVOKED, EXPIRED
+    created_at = Column(DateTime, default=datetime.utcnow)
+    accepted_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+
+    requester = sa_relationship("User", foreign_keys="FamilyConnection.requester_id")
+    member = sa_relationship("User", foreign_keys="FamilyConnection.member_id")
+
+class Invitation(Base):
+    __tablename__ = "invitations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    requester_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    member_name = Column(String, nullable=False)
+    relationship = Column(String, nullable=False)
+    phone = Column(String, nullable=True)
+    email = Column(String, index=True, nullable=False)
+    invitation_type = Column(String, default="EMAIL") # EMAIL, DIRECT_APP, QR_CODE
+    secure_token_hash = Column(String, unique=True, index=True, nullable=False)
+    status = Column(String, default="PENDING") # PENDING, ACCEPTED, DECLINED, EXPIRED
+    expires_at = Column(DateTime, nullable=False)
+    accepted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    requester = sa_relationship("User", foreign_keys="Invitation.requester_id")
+
+class LocationSharing(Base):
+    __tablename__ = "location_sharings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    sharing_enabled = Column(Boolean, default=False)
+    permission_type = Column(String, default="ALWAYS") # WHILE_USING, ALWAYS, PAUSED, DISABLED
+    history_opt_in = Column(Boolean, default=False)
+    voice_detection_enabled = Column(Boolean, default=False)
+    media_recording_enabled = Column(Boolean, default=True)
+    permission_granted_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    last_updated_at = Column(DateTime, nullable=True)
+
+    user = sa_relationship("User")
+
+class UserLiveLocation(Base):
+    __tablename__ = "user_live_locations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    accuracy = Column(Float, nullable=True)
+    speed = Column(Float, nullable=True)
+    heading = Column(Float, nullable=True)
+    battery_level = Column(Integer, nullable=True) # e.g. 85 for 85%
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = sa_relationship("User")
+
+class FamilyEmergencyAlert(Base):
+    __tablename__ = "family_emergency_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    accuracy = Column(Float, nullable=True)
+    trigger_method = Column(String, default="BUTTON") # BUTTON, VOICE, AUTOMATED_SAFETY_TRIGGER
+    status = Column(String, default="EMERGENCY_ACTIVE") # NORMAL, SOS_TRIGGERED, LOCATION_CAPTURED, FAMILY_NOTIFIED, EMERGENCY_ACTIVE, FAMILY_ACKNOWLEDGED, EMERGENCY_RESOLVED, EMERGENCY_CANCELLED
+    message = Column(String, default="🚨 SOS Emergency Alert Triggered!")
+    battery_level = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    acknowledged_at = Column(DateTime, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+
+    user = sa_relationship("User")
+    recipients = sa_relationship("EmergencyRecipientRecord", back_populates="event", cascade="all, delete-orphan")
+    media_items = sa_relationship("EmergencyMediaRecord", back_populates="event", cascade="all, delete-orphan")
+
+class EmergencyRecipientRecord(Base):
+    __tablename__ = "emergency_recipients"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("family_emergency_alerts.id"), nullable=False)
+    recipient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    notification_status = Column(String, default="SENT") # SENT, DELIVERED, ACKNOWLEDGED
+    acknowledged_at = Column(DateTime, nullable=True)
+
+    event = sa_relationship("FamilyEmergencyAlert", back_populates="recipients")
+    recipient = sa_relationship("User", foreign_keys="EmergencyRecipientRecord.recipient_id")
+
+class EmergencyMediaRecord(Base):
+    __tablename__ = "emergency_media"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("family_emergency_alerts.id"), nullable=False)
+    media_type = Column(String, nullable=False) # AUDIO, VIDEO, AUDIO_VIDEO
+    storage_url = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+
+    event = sa_relationship("FamilyEmergencyAlert", back_populates="media_items")
+
+class LocationHistoryRecord(Base):
+    __tablename__ = "location_history_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    place_name = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+    user = sa_relationship("User")
+
 
