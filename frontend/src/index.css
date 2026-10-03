@@ -4,60 +4,99 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased selection:bg-red-600 selection:text-white;
+    @apply bg-[#071C14] text-slate-100 font-sans antialiased selection:bg-[#D4AF37] selection:text-slate-950;
+  }
+
+  h1, h2, h3, .font-heading {
+    font-family: 'Cinzel', 'Playfair Display', Georgia, serif;
   }
 }
 
-/* White + Red Design System */
-.saferoute-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+/* Dark Emerald & Gold Luxury Design System */
+.gold-text-gradient {
+  background: linear-gradient(135deg, #FDF8E2 0%, #F4D06F 35%, #D4AF37 70%, #B8860B 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.saferoute-card:hover {
-  border-color: #fca5a5;
-  box-shadow: 0 10px 25px -5px rgba(220, 38, 38, 0.08), 0 8px 10px -6px rgba(220, 38, 38, 0.04);
+.gold-border-glow {
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.15), inset 0 0 15px rgba(212, 175, 55, 0.05);
 }
 
-.saferoute-btn-primary {
-  @apply bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold transition rounded-2xl shadow-md hover:shadow-lg shadow-red-600/20 flex items-center justify-center;
+.gold-border-glow:hover {
+  border-color: rgba(244, 208, 111, 0.7);
+  box-shadow: 0 0 30px rgba(212, 175, 55, 0.3), inset 0 0 20px rgba(212, 175, 55, 0.1);
 }
 
-/* Scrollbars */
+.forest-card {
+  background: rgba(16, 53, 38, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(6, 78, 59, 0.2);
+  border-radius: 1.5rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.forest-card:hover {
+  border-color: rgba(212, 175, 55, 0.45);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(212, 175, 55, 0.15);
+}
+
+.gold-btn-primary {
+  background: linear-gradient(135deg, #D4AF37 0%, #F4D06F 50%, #B8860B 100%);
+  color: #071C14;
+  font-weight: 800;
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px rgba(212, 175, 55, 0.3);
+  transition: all 0.3s ease;
+}
+
+.gold-btn-primary:hover {
+  background: linear-gradient(135deg, #F4D06F 0%, #FDF8E2 50%, #D4AF37 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 15px 35px rgba(212, 175, 55, 0.5);
+}
+
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #071C14;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #103526;
+  border: 1px solid rgba(212, 175, 55, 0.3);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #D4AF37;
 }
 
-/* Leaflet Map overrides for Clean White theme */
+/* Leaflet Map overrides for Dark Emerald theme */
 .leaflet-container {
   width: 100%;
   height: 100%;
-  background-color: #f8fafc !important;
+  background-color: #071C14 !important;
   font-family: inherit;
 }
 
+.leaflet-tile {
+  filter: brightness(0.6) invert(1) contrast(3) hue-rotate(180deg) saturate(0.3) brightness(0.7);
+}
+
 .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-  background: #ffffff !important;
-  color: #0f172a !important;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  background: #0B2A1E !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  border-radius: 16px !important;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 175, 55, 0.2);
 }
 
 .route-map-section {
@@ -68,9 +107,9 @@
   display: block;
   overflow: hidden;
   border-radius: 24px;
-  border: 1px solid #e2e8f0;
-  background-color: #ffffff;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  background-color: #071C14;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
 }
 
 .route-map {
@@ -97,63 +136,12 @@
   }
 }
 
-/* Road & Vehicle Driving Animation Styles */
-@keyframes roadDashMove {
-  0% {
-    stroke-dashoffset: 40;
-  }
-  100% {
-    stroke-dashoffset: 0;
-  }
+/* Animations */
+@keyframes goldGlow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
 }
 
-.animate-road-dash {
-  animation: roadDashMove 1.2s linear infinite;
+.animate-gold-glow {
+  animation: goldGlow 3s infinite ease-in-out;
 }
-
-@keyframes carTravelAlongPath {
-  0% {
-    offset-distance: 0%;
-  }
-  50% {
-    offset-distance: 100%;
-  }
-  100% {
-    offset-distance: 0%;
-  }
-}
-
-.animate-car-travel {
-  offset-path: path("M 40 180 Q 200 40, 420 180 T 800 180");
-  animation: carTravelAlongPath 14s ease-in-out infinite;
-}
-
-@keyframes carTravelFull {
-  0% {
-    offset-distance: 0%;
-  }
-  100% {
-    offset-distance: 100%;
-  }
-}
-
-.animate-car-travel-full {
-  offset-path: path("M -50 250 C 350 50, 700 450, 1450 250");
-  animation: carTravelFull 15s linear infinite;
-}
-
-/* Grid & Subtle Background Map Overlay */
-.bg-map-pattern {
-  background-color: #ffffff;
-  background-image: 
-    radial-gradient(#e2e8f0 1.2px, transparent 1.2px),
-    radial-gradient(#e2e8f0 1.2px, #ffffff 1.2px);
-  background-size: 48px 48px;
-  background-position: 0 0, 24px 24px;
-}
-
-.bg-road-lines-overlay {
-  background-image: linear-gradient(0deg, rgba(248, 250, 252, 0.8) 0%, rgba(255, 255, 255, 0.3) 100%),
-                    url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18h2v84h-2zM68 0h2v100h-2zM0 48h100v2H0zM0 88h100v2H0z' fill='%23cbd5e1' fill-opacity='0.15' fill-rule='evenodd'/%3E%3C/svg%3E");
-}
-

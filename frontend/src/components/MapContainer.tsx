@@ -105,13 +105,17 @@ const DynamicMapBounds: React.FC<{ coords: { lat: number; lng: number }[] }> = (
 };
 
 interface MapProps {
-  allRoutes: RouteOptionConsumer[];
-  selectedRoute: RouteOptionConsumer | null;
+  allRoutes?: RouteOptionConsumer[];
+  routes?: RouteOptionConsumer[];
+  selectedRoute?: RouteOptionConsumer | null;
+  selectedRouteId?: string | null;
   onSelectRoute: (id: string) => void;
   originName?: string;
   destinationName?: string;
   originCoords?: { lat: number; lng: number };
+  origin?: { lat: number; lng: number };
   destCoords?: { lat: number; lng: number };
+  destination?: { lat: number; lng: number };
   userLocation?: { lat: number; lng: number; accuracy?: number };
   emergencyPOIs?: EmergencyPOI[];
   safetyIncidents?: SafetyIncidentItem[];
@@ -123,12 +127,16 @@ interface MapProps {
 
 export const MapContainerComponent: React.FC<MapProps> = ({
   allRoutes = [],
+  routes = [],
   selectedRoute,
+  selectedRouteId,
   onSelectRoute,
   originName,
   destinationName,
   originCoords,
+  origin,
   destCoords,
+  destination,
   userLocation,
   emergencyPOIs = [],
   safetyIncidents = [],
@@ -137,12 +145,14 @@ export const MapContainerComponent: React.FC<MapProps> = ({
   showTrafficPrediction = false,
   trafficPredictionData = null
 }) => {
-  const safeCoords = selectedRoute?.path || (allRoutes[0]?.path) || [];
-  const startCoord = originCoords || (safeCoords.length > 0 ? safeCoords[0] : { lat: 11.0168, lng: 76.9558 });
-  const endCoord = destCoords || (safeCoords.length > 0 ? safeCoords[safeCoords.length - 1] : { lat: 11.0478, lng: 76.8524 });
+  const effectiveRoutes = routes.length > 0 ? routes : allRoutes;
+  const activeSelectedRoute = selectedRoute || effectiveRoutes.find(r => r.id === selectedRouteId) || effectiveRoutes[0] || null;
+  const safeCoords = activeSelectedRoute?.path || (effectiveRoutes[0]?.path) || [];
+  const startCoord = origin || originCoords || (safeCoords.length > 0 ? safeCoords[0] : { lat: 11.0168, lng: 76.9558 });
+  const endCoord = destination || destCoords || (safeCoords.length > 0 ? safeCoords[safeCoords.length - 1] : { lat: 11.0478, lng: 76.8524 });
 
   const allCoordsList: { lat: number; lng: number }[] = [];
-  allRoutes.forEach(r => {
+  effectiveRoutes.forEach(r => {
     (r.path || r.coordinates || []).forEach(c => allCoordsList.push(c));
   });
   if (allCoordsList.length === 0) {

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, updatePriority, deleteAllTrips, deleteUserAccount } from '../services/api';
 import { User } from '../types';
-import { User as UserIcon, Sliders, Trash2, LogOut, Check, Lock } from 'lucide-react';
+import { WeatherBackground } from '../components/WeatherBackground';
+import { User as UserIcon, Sliders, Trash2, LogOut, Check, Lock, ShieldCheck, Sparkles } from 'lucide-react';
 
 export const ProfilePage: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -22,8 +23,8 @@ export const ProfilePage: React.FC = () => {
     } catch (e) {
       setUser({
         id: 1,
-        email: 'user@saferoute.ai',
-        full_name: 'SafeRoute User',
+        email: 'keerthigamurali3116@gmail.com',
+        full_name: 'Keerthiga Murali',
         preferred_priority: 'balanced',
         created_at: new Date().toISOString()
       });
@@ -70,112 +71,96 @@ export const ProfilePage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 space-y-8 font-sans">
-      
-      <div className="border-b border-slate-200 pb-4 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2.5">
-            <UserIcon className="w-6 h-6 text-red-600" />
-            <span>Profile & Account Settings</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Manage your route preferences and privacy settings.
-          </p>
-        </div>
-
-        {savedMsg && (
-          <span className="px-3 py-1 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1">
-            <Check className="w-3.5 h-3.5" />
-            <span>{savedMsg}</span>
-          </span>
-        )}
-      </div>
-
-      {/* Account Info Card */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-200 text-red-600 flex items-center justify-center font-black text-lg">
-            {user?.full_name?.charAt(0) || 'U'}
-          </div>
+    <WeatherBackground condition="Clear" defaultImage="https://images.unsplash.com/photo-1519692933481-e162a57d6721?auto=format&fit=crop&w=2000&q=80">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">
+        
+        <div className="forest-card p-8 flex justify-between items-center">
           <div>
-            <h2 className="font-black text-slate-900 text-base">{user?.full_name || 'SafeRoute User'}</h2>
-            <p className="text-xs text-slate-500 font-mono">{user?.email || 'user@saferoute.ai'}</p>
+            <div className="flex items-center gap-2 text-[#F4D06F] text-xs font-mono font-bold mb-1">
+              <UserIcon className="w-4 h-4" />
+              <span>USER PROFILE & PREFERENCES</span>
+            </div>
+            <h1 className="text-3xl font-serif font-black text-white">
+              Account <span className="gold-text-gradient">Settings</span>
+            </h1>
+            <p className="text-xs text-slate-300 mt-1">
+              Manage your safety algorithm priorities, history logs, and security credentials.
+            </p>
+          </div>
+
+          {savedMsg && (
+            <span className="px-3.5 py-1.5 bg-emerald-950 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>{savedMsg}</span>
+            </span>
+          )}
+        </div>
+
+        {/* User Card */}
+        <div className="forest-card p-6 space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#D4AF37] to-[#B8860B] text-[#071C14] flex items-center justify-center font-serif font-black text-2xl shadow-lg">
+              {user?.full_name?.charAt(0) || 'K'}
+            </div>
+            <div>
+              <h3 className="text-lg font-serif font-bold text-white">{user?.full_name}</h3>
+              <p className="text-xs text-slate-400 font-mono">{user?.email}</p>
+              <span className="inline-block mt-1 px-2.5 py-0.5 bg-[#0B2A1E] border border-[#D4AF37]/30 text-[10px] font-mono font-bold text-[#F4D06F] rounded-full">
+                VERIFIED PROTECTED SESSION
+              </span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Priority Preference Card */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-        <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-          <Sliders className="w-4 h-4 text-red-600" />
-          Default Route Priority
-        </h2>
+        {/* Priority Setting */}
+        <div className="forest-card p-6 space-y-4">
+          <div className="flex items-center gap-2 text-white font-serif font-bold text-base border-b border-[#064E3B] pb-3">
+            <Sliders className="w-5 h-5 text-[#F4D06F]" />
+            <span>Default Route Calculation Priority</span>
+          </div>
 
-        <div className="space-y-3">
-          {[
-            { id: 'fastest', title: 'Fastest', desc: 'Prioritize shortest duration.' },
-            { id: 'balanced', title: 'Balanced', desc: 'Balance travel time, distance, and road conditions.' },
-            { id: 'lower_risk', title: 'Lower Predicted Risk', desc: 'Prefer corridors with lower predicted safety risk.' },
-          ].map((item) => {
-            const active = priority === item.id;
-            return (
-              <div
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { id: 'shortest', label: 'Shortest Distance', desc: 'Prioritizes shortest travel length' },
+              { id: 'fastest', label: 'Fastest Travel Time', desc: 'Prioritizes highway velocity' },
+              { id: 'balanced', label: 'Balanced Safety', desc: 'Weighted ML risk minimization' }
+            ].map(item => (
+              <button
                 key={item.id}
                 onClick={() => handleUpdatePriority(item.id)}
-                className={`p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
-                  active
-                    ? 'bg-red-50 border-red-500 text-slate-900 shadow-sm'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-red-200'
+                className={`p-4 rounded-xl border text-left transition-all ${
+                  priority === item.id
+                    ? 'bg-[#0B2A1E] border-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.3)]'
+                    : 'bg-[#071C14]/60 border-[#064E3B] hover:border-slate-700'
                 }`}
               >
-                <div>
-                  <p className="font-extrabold text-xs text-slate-900">{item.title}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{item.desc}</p>
-                </div>
-                {active && <Check className="w-4 h-4 text-red-600" />}
-              </div>
-            );
-          })}
+                <h4 className="text-xs font-bold text-white mb-1">{item.label}</h4>
+                <p className="text-[11px] text-slate-400">{item.desc}</p>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Privacy Actions */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-        <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-          <Lock className="w-4 h-4 text-red-600" />
-          Privacy Controls
-        </h2>
-
-        <div className="space-y-3">
+        {/* Actions */}
+        <div className="forest-card p-6 flex flex-col sm:flex-row justify-between items-center gap-4">
           <button
             onClick={handleDeleteHistory}
-            className="w-full p-3.5 bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-2xl text-xs font-bold border border-slate-200 transition flex items-center justify-between"
+            className="px-4 py-2.5 bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/50 text-xs font-bold rounded-xl flex items-center gap-2"
           >
-            <span>Delete my trip history</span>
-            <Trash2 className="w-4 h-4 text-slate-400" />
+            <Trash2 className="w-4 h-4" />
+            <span>Clear Trip Logs</span>
           </button>
 
           <button
-            onClick={handleDeleteAccount}
-            className="w-full p-3.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-2xl text-xs font-bold border border-red-200 transition flex items-center justify-between"
+            onClick={handleSignOut}
+            className="gold-btn-primary px-6 py-2.5 text-xs font-bold uppercase tracking-wider flex items-center gap-2"
           >
-            <span>Delete my account</span>
-            <Trash2 className="w-4 h-4 text-red-600" />
+            <LogOut className="w-4 h-4" />
+            <span>Sign Out Session</span>
           </button>
         </div>
-      </div>
 
-      {/* Sign Out */}
-      <div className="pt-2">
-        <button
-          onClick={handleSignOut}
-          className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-xs transition flex items-center justify-center gap-2"
-        >
-          <LogOut className="w-4 h-4" />
-          <span>Sign Out</span>
-        </button>
       </div>
-
-    </div>
+    </WeatherBackground>
   );
 };

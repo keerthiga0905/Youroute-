@@ -6,10 +6,11 @@ import { Bookmark, X, Home, Briefcase, Heart, MapPin, Plus } from 'lucide-react'
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onAdded: (place: SavedPlace) => void;
+  onAdded?: (place: SavedPlace) => void;
+  onSave?: (place?: SavedPlace) => void;
 }
 
-export const SavedPlacesModal: React.FC<Props> = ({ isOpen, onClose, onAdded }) => {
+export const SavedPlacesModal: React.FC<Props> = ({ isOpen, onClose, onAdded, onSave }) => {
   const [category, setCategory] = useState<'home' | 'work' | 'favorite'>('favorite');
   const [label, setLabel] = useState('');
   const [address, setAddress] = useState('');
@@ -30,7 +31,8 @@ export const SavedPlacesModal: React.FC<Props> = ({ isOpen, onClose, onAdded }) 
         latitude: parseFloat(lat) || 11.0168,
         longitude: parseFloat(lng) || 76.9558
       });
-      onAdded(place);
+      if (onAdded) onAdded(place);
+      if (onSave) onSave(place);
       onClose();
     } catch (e) {
       console.error(e);

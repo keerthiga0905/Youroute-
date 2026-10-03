@@ -25,6 +25,7 @@ export const App: React.FC = () => {
           <ErrorBoundary>
             <Routes>
               <Route path="/" element={<HomePage />} />
+              <Route path="/plan-route" element={<RouteResultsPage />} />
               <Route path="/family-safety" element={<FamilySafetyPage />} />
               <Route path="/family-safety/accept" element={<FamilyConsentPage />} />
               <Route path="/results" element={<RouteResultsPage />} />

@@ -22,7 +22,8 @@ interface NavigationOverlayProps {
   originName: string;
   destinationName: string;
   userLocation?: { lat: number; lng: number };
-  onClose: () => void;
+  onClose?: () => void;
+  onExitNavigation?: () => void;
 }
 
 export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
@@ -30,8 +31,10 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
   originName,
   destinationName,
   userLocation,
-  onClose
+  onClose,
+  onExitNavigation
 }) => {
+  const handleExit = onExitNavigation || onClose || (() => {});
   const defaultCoord = route.path?.[0] || { lat: 11.0168, lng: 76.9558 };
   const destCoord = route.path?.[route.path.length - 1] || { lat: 11.0478, lng: 76.8524 };
 
