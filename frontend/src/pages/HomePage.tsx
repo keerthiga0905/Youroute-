@@ -205,7 +205,7 @@ export const HomePage: React.FC = () => {
   };
 
   return (
-    <WeatherBackground condition="Clear" defaultImage="/assets/home_hero_map_bg.jpg">
+    <WeatherBackground condition="Clear" defaultImage="/assets/dark_emerald_road_hero.jpg">
       <div className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-16">
         
         {/* HERO SECTION */}
@@ -270,7 +270,8 @@ export const HomePage: React.FC = () => {
 
                   {/* ANIMATED 2 HIKERS BACKPACKER ILLUSTRATION WALKING ALONG ROUTE */}
                   <g className="animate-hike-route">
-                    <image href="/assets/two_hikers.png" width="95" height="95" x="-47" y="-75" />
+                    <circle r="34" fill="#0B2A1E" stroke="#D4AF37" strokeWidth="2" filter="drop-shadow(0px 8px 12px rgba(0,0,0,0.6))" />
+                    <image href="/assets/two_hikers.png" width="60" height="60" x="-30" y="-30" style={{ clipPath: 'circle(48%)' }} />
                   </g>
 
                   {/* 3D Waypoint Pin 1 (Origin) */}

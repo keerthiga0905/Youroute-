@@ -11,12 +11,12 @@ interface WeatherBackgroundProps {
 const WEATHER_MEDIA_MAP: Record<string, { video: string; fallbackImage: string; overlayGradient: string }> = {
   Clear: {
     video: 'https://assets.mixkit.co/videos/preview/mixkit-driving-on-a-highway-at-sunset-41547-large.mp4',
-    fallbackImage: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=2000&q=80',
+    fallbackImage: '/assets/dark_emerald_road_hero.jpg',
     overlayGradient: 'from-[#071C14]/90 via-[#071C14]/85 to-[#0B2A1E]/95'
   },
   Sunny: {
     video: 'https://assets.mixkit.co/videos/preview/mixkit-driving-on-a-highway-at-sunset-41547-large.mp4',
-    fallbackImage: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=2000&q=80',
+    fallbackImage: '/assets/dark_emerald_road_hero.jpg',
     overlayGradient: 'from-[#071C14]/85 via-[#071C14]/80 to-[#0B2A1E]/90'
   },
   Cloudy: {
