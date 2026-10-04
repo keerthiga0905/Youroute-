@@ -209,3 +209,34 @@
 .tilt-card-3d:hover {
   transform: rotateX(0deg) rotateY(0deg) translateZ(30px) scale(1.02);
 }
+
+/* Weather Moving Clouds Keyframe Animations */
+@keyframes cloudDriftSlow {
+  0% {
+    transform: translateX(-15%) translateY(0px);
+  }
+  50% {
+    transform: translateX(15%) translateY(-10px);
+  }
+  100% {
+    transform: translateX(-15%) translateY(0px);
+  }
+}
+
+@keyframes cloudDriftFast {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-cloud-drift-slow {
+  animation: cloudDriftSlow 35s ease-in-out infinite;
+}
+
+.animate-cloud-drift-fast {
+  animation: cloudDriftFast 50s linear infinite;
+}
+

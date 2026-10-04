@@ -124,6 +124,24 @@ export const WeatherBackground: React.FC<WeatherBackgroundProps> = ({
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(212,175,55,0.1),transparent_70%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(6,78,59,0.2),transparent_70%)]" />
 
+        {/* Dynamic Moving Clouds Layer: Continuous SVG Animated Clouds Overlay */}
+        <div className="absolute inset-0 overflow-hidden opacity-30 pointer-events-none z-0">
+          {/* Cloud Layer 1 - Slow drifting upper clouds */}
+          <div className="absolute top-0 -left-[20%] w-[140%] h-64 animate-cloud-drift-slow opacity-70">
+            <svg viewBox="0 0 1200 400" className="w-full h-full fill-emerald-100/20 filter blur-xl">
+              <path d="M0 250 Q200 150, 400 220 T800 180 T1200 240 L1200 0 L0 0 Z" />
+              <path d="M100 280 Q350 180, 600 240 T1100 190 L1200 0 L0 0 Z" />
+            </svg>
+          </div>
+
+          {/* Cloud Layer 2 - Fast drifting mid clouds */}
+          <div className="absolute top-10 -left-full w-[200%] h-72 animate-cloud-drift-fast opacity-50">
+            <svg viewBox="0 0 1600 300" className="w-full h-full fill-slate-200/15 filter blur-lg">
+              <path d="M0 180 Q300 80, 600 160 T1200 120 T1600 200 L1600 0 L0 0 Z" />
+            </svg>
+          </div>
+        </div>
+
         {/* Subtle Luxury Marble & Grid Overlay */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(212,175,55,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(212,175,55,0.03)_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20" />
       </div>

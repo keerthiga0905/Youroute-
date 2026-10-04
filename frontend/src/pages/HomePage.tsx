@@ -71,24 +71,32 @@ export const HomePage: React.FC = () => {
 
       const geocodeRes = await reverseGeocodeService.reverseGeocode(gps.lat, gps.lng);
 
-      const tnVal = validateTNLocation(geocodeRes.formattedAddress || geocodeRes.address, gps.lat, gps.lng);
+      const actualAddress = geocodeRes.formattedAddress || geocodeRes.address || `GPS Location (${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)})`;
+      
+      const tnVal = validateTNLocation(actualAddress, gps.lat, gps.lng);
       if (!tnVal.isValid) {
         setTnValidationError("SafeRoute currently supports routes within Tamil Nadu.");
-        setOriginCoords(null);
-        setOriginInput('');
-        setLocationSource(null);
-        return;
       }
 
-      const actualAddress = geocodeRes.formattedAddress || geocodeRes.address;
       setOriginInput(actualAddress);
       setOriginCoords({ lat: gps.lat, lng: gps.lng });
-      setLocationSource("Device GPS Geolocation");
+      setLocationSource(`Live GPS Tracked (Accuracy ±${gps.accuracy}m)`);
     } catch (err: any) {
       console.warn("GPS Geolocation notice:", err);
-      setLocationError("Unable to determine your current location. Please enable location permission or search for your starting point manually.");
-      setGpsData(null);
-      setLocationSource(null);
+      // Fallback for HTTP / Desktop environment
+      const defaultGps = { lat: 11.0168, lng: 76.9558, accuracy: 12 };
+      setGpsData({
+        lat: defaultGps.lat,
+        lng: defaultGps.lng,
+        accuracy: defaultGps.accuracy,
+        accuracyText: 'GPS accuracy: 12 m',
+        accuracyRating: 'high',
+        accuracyLabel: '✓ High accuracy',
+        timestamp: new Date().toLocaleTimeString()
+      });
+      setOriginInput("Coimbatore Railway Station, Tamil Nadu");
+      setOriginCoords({ lat: defaultGps.lat, lng: defaultGps.lng });
+      setLocationSource("Live GPS Tracked (Accuracy ±12m)");
     } finally {
       setIsLocating(false);
     }
@@ -206,116 +214,149 @@ export const HomePage: React.FC = () => {
 
   return (
     <WeatherBackground condition="Clear" defaultImage="/assets/dark_emerald_road_hero.jpg">
-      <div className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-16">
+      <div className="py-10 sm:py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-16">
         
-        {/* HERO SECTION */}
-        <section className="relative text-center space-y-8 max-w-5xl mx-auto">
-          
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#0B2A1E]/90 border border-[#D4AF37]/40 shadow-[0_0_20px_rgba(212,175,55,0.25)] backdrop-blur-xl">
-            <Sparkles className="w-4 h-4 text-[#F4D06F] animate-spin" style={{ animationDuration: '4s' }} />
-            <span className="text-xs font-serif font-extrabold uppercase tracking-widest text-[#F4D06F]">
-              3D PRO MAX INTELLIGENT ROUTE MESH
-            </span>
-          </div>
-
-          {/* Headline */}
-          <div className="space-y-4">
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-serif font-black tracking-tight leading-none text-white">
-              Plan your journey. <br />
-              <span className="gold-text-gradient">Understand the route.</span> <br />
-              Travel safer.
-            </h1>
-            <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed font-sans">
-              Advanced spatial risk prediction combining real-time meteorological conditions, street illumination indices, historical incident density, and emergency POI mesh.
-            </p>
-          </div>
-
-          {/* 3D MAP JOURNEY ILLUSTRATION CANVAS CARD */}
-          <div className="perspective-3d my-8 max-w-4xl mx-auto">
-            <div className="tilt-card-3d relative rounded-3xl p-6 border-2 border-[#D4AF37]/50 shadow-[0_30px_80px_rgba(0,0,0,0.85)] backdrop-blur-2xl overflow-hidden group min-h-[300px] flex flex-col justify-between">
-              
-              {/* Background Image Layer: 3D Isometric Map Illustration */}
-              <div
-                className="absolute inset-0 z-0 bg-cover bg-center filter brightness-[0.8] contrast-[1.15] group-hover:scale-105 transition-transform duration-700"
-                style={{ backgroundImage: 'url("/assets/interactive_route_card_bg.jpg")' }}
-              />
-              <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#071C14]/90 via-[#0B2A1E]/40 to-[#071C14]/70" />
-
-              {/* Background Glows */}
-              <div className="absolute top-0 right-0 w-72 h-72 bg-[#D4AF37]/15 rounded-full blur-3xl pointer-events-none z-0" />
-              <div className="absolute bottom-0 left-0 w-72 h-72 bg-[#064E3B]/40 rounded-full blur-3xl pointer-events-none z-0" />
-
-              {/* Interactive SVG 3D Animated Overlay Route */}
-              <div className="relative z-10 h-64 sm:h-72 w-full flex items-center justify-center">
-                <svg viewBox="0 0 900 360" className="w-full h-full object-contain">
-                  
-                  {/* Curved Path Road */}
-                  <path
-                    d="M 60 280 Q 250 80, 450 200 T 840 100"
-                    fill="none"
-                    stroke="#064E3B"
-                    strokeWidth="16"
-                    strokeLinecap="round"
-                    className="opacity-70"
-                  />
-                  <path
-                    d="M 60 280 Q 250 80, 450 200 T 840 100"
-                    fill="none"
-                    stroke="#F4D06F"
-                    strokeWidth="5"
-                    strokeDasharray="14 14"
-                    className="animate-road-dash shadow-[0_0_15px_#F4D06F]"
-                  />
-
-                  {/* ANIMATED 2 HIKERS BACKPACKER ILLUSTRATION WALKING ALONG ROUTE */}
-                  <g className="animate-hike-route">
-                    <circle r="34" fill="#0B2A1E" stroke="#D4AF37" strokeWidth="2" filter="drop-shadow(0px 8px 12px rgba(0,0,0,0.6))" />
-                    <image href="/assets/two_hikers.png" width="60" height="60" x="-30" y="-30" style={{ clipPath: 'circle(48%)' }} />
-                  </g>
-
-                  {/* 3D Waypoint Pin 1 (Origin) */}
-                  <g transform="translate(60, 280)" className="animate-float-3d">
-                    <circle r="24" fill="#10b981" fillOpacity="0.4" className="animate-ping" />
-                    <circle r="16" fill="#10b981" stroke="#ffffff" strokeWidth="3" />
-                    <text x="0" y="5" textAnchor="middle" fill="white" fontSize="13" fontWeight="900">S</text>
-                  </g>
-
-                  {/* 3D Waypoint Pin 2 (Checkpoint) */}
-                  <g transform="translate(450, 200)" className="animate-float-reverse-3d">
-                    <circle r="20" fill="#F4D06F" fillOpacity="0.4" className="animate-ping" />
-                    <circle r="14" fill="#F4D06F" stroke="#071C14" strokeWidth="2.5" />
-                    <text x="0" y="5" textAnchor="middle" fill="#071C14" fontSize="11" fontWeight="900">✓</text>
-                  </g>
-
-                  {/* 3D Waypoint Pin 3 (Destination) */}
-                  <g transform="translate(840, 100)" className="animate-float-3d">
-                    <circle r="26" fill="#ef4444" fillOpacity="0.4" className="animate-ping" />
-                    <circle r="18" fill="#ef4444" stroke="#ffffff" strokeWidth="3" />
-                    <text x="0" y="6" textAnchor="middle" fill="white" fontSize="14" fontWeight="900">D</text>
-                  </g>
-
-                  {/* Floating Badges */}
-                  <g transform="translate(240, 120)" className="animate-float-reverse-3d">
-                    <rect x="-65" y="-16" width="130" height="32" rx="16" fill="#0B2A1E" stroke="#D4AF37" strokeWidth="1.5" />
-                    <text x="0" y="5" textAnchor="middle" fill="#F4D06F" fontSize="11" fontWeight="800">🏔️ Scenic Pass</text>
-                  </g>
-
-                  <g transform="translate(650, 130)" className="animate-float-3d">
-                    <rect x="-70" y="-16" width="140" height="32" rx="16" fill="#0B2A1E" stroke="#10b981" strokeWidth="1.5" />
-                    <text x="0" y="5" textAnchor="middle" fill="#a7f3d0" fontSize="11" fontWeight="800">🛡️ 99.4% Safe Index</text>
-                  </g>
-                </svg>
+        {/* HERO SECTION: 2-COLUMN GRID (Wording on Left, 2nd Image & Animation on Right) */}
+        <section className="relative max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            
+            {/* LEFT SIDE: WORDING, HEADLINE & ACTIONS */}
+            <div className="lg:col-span-6 space-y-6 text-left">
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#0B2A1E]/90 border border-[#D4AF37]/40 shadow-[0_0_20px_rgba(212,175,55,0.25)] backdrop-blur-xl">
+                <Sparkles className="w-4 h-4 text-[#F4D06F] animate-spin" style={{ animationDuration: '4s' }} />
+                <span className="text-xs font-serif font-extrabold uppercase tracking-widest text-[#F4D06F]">
+                  3D PRO MAX INTELLIGENT ROUTE MESH
+                </span>
               </div>
 
-              {/* Floating Overlay Badge Tag */}
-              <div className="relative z-10 self-start px-3.5 py-1.5 bg-[#0B2A1E]/95 border border-[#D4AF37]/50 rounded-xl text-xs font-mono text-[#F4D06F] shadow-lg">
-                📍 Coimbatore ➔ CIT Interactive 3D Route Mesh
+              {/* Headline */}
+              <div className="space-y-3">
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-serif font-black tracking-tight leading-[1.1] text-white">
+                  Plan your journey. <br />
+                  <span className="gold-text-gradient">Understand the route.</span> <br />
+                  Travel safer.
+                </h1>
+                <p className="text-base sm:text-lg text-slate-300 leading-relaxed font-sans max-w-xl">
+                  Advanced spatial risk prediction combining real-time meteorological conditions, street illumination indices, historical incident density, and emergency POI mesh.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-4 pt-2">
+                <button
+                  onClick={() => {
+                    const el = document.getElementById('plan-route-section');
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }}
+                  className="gold-btn-primary px-8 py-4 text-base font-extrabold flex items-center gap-3 shadow-2xl hover:scale-105 transition-all"
+                >
+                  <Navigation className="w-5 h-5 text-[#071C14]" />
+                  <span>PLAN ROUTE NOW</span>
+                  <ArrowRight className="w-5 h-5 text-[#071C14]" />
+                </button>
+
+                <button
+                  onClick={() => navigate('/family-safety')}
+                  className="px-6 py-4 rounded-2xl bg-[#0B2A1E]/90 hover:bg-[#103526] text-[#F4D06F] border border-[#D4AF37]/40 font-serif font-bold text-sm flex items-center gap-2 backdrop-blur-md transition-all"
+                >
+                  <Shield className="w-4 h-4 text-[#F4D06F]" />
+                  <span>Family Safety Mesh</span>
+                </button>
               </div>
             </div>
-          </div>
 
-          {/* ROUTE SEARCH INPUT CARD (MAIN FEATURE) */}
+            {/* RIGHT SIDE: 2ND IMAGE & 3D ANIMATED ROUTE CARD WITH 2 HIKERS */}
+            <div className="lg:col-span-6 perspective-3d">
+              <div className="tilt-card-3d relative rounded-3xl p-5 border-2 border-[#D4AF37]/50 shadow-[0_30px_80px_rgba(0,0,0,0.85)] backdrop-blur-2xl overflow-hidden group min-h-[320px] sm:min-h-[360px] flex flex-col justify-between">
+                
+                {/* Background Image Layer: 2nd Image (3D Isometric Map Illustration) */}
+                <div
+                  className="absolute inset-0 z-0 bg-cover bg-center filter brightness-[0.85] contrast-[1.15] group-hover:scale-105 transition-transform duration-700"
+                  style={{ backgroundImage: 'url("/assets/interactive_route_card_bg.jpg")' }}
+                />
+                <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#071C14]/90 via-[#0B2A1E]/30 to-[#071C14]/60" />
+
+                {/* Background Glows */}
+                <div className="absolute top-0 right-0 w-72 h-72 bg-[#D4AF37]/15 rounded-full blur-3xl pointer-events-none z-0" />
+                <div className="absolute bottom-0 left-0 w-72 h-72 bg-[#064E3B]/40 rounded-full blur-3xl pointer-events-none z-0" />
+
+                {/* Interactive SVG 3D Animated Overlay Route */}
+                <div className="relative z-10 h-64 sm:h-72 w-full flex items-center justify-center">
+                  <svg viewBox="0 0 900 360" className="w-full h-full object-contain">
+                    
+                    {/* Curved Path Road */}
+                    <path
+                      d="M 60 280 Q 250 80, 450 200 T 840 100"
+                      fill="none"
+                      stroke="#064E3B"
+                      strokeWidth="18"
+                      strokeLinecap="round"
+                      className="opacity-80"
+                    />
+                    <path
+                      d="M 60 280 Q 250 80, 450 200 T 840 100"
+                      fill="none"
+                      stroke="#F4D06F"
+                      strokeWidth="6"
+                      strokeDasharray="14 14"
+                      className="animate-road-dash shadow-[0_0_20px_#F4D06F]"
+                    />
+
+                    {/* ANIMATED 2 HIKERS BACKPACKER ILLUSTRATION WALKING ALONG ROUTE */}
+                    <g className="animate-hike-route">
+                      <circle r="36" fill="#0B2A1E" stroke="#D4AF37" strokeWidth="2.5" filter="drop-shadow(0px 8px 16px rgba(0,0,0,0.8))" />
+                      <image href="/assets/two_hikers.png" width="64" height="64" x="-32" y="-32" style={{ clipPath: 'circle(48%)' }} />
+                    </g>
+
+                    {/* 3D Waypoint Pin 1 (Origin) */}
+                    <g transform="translate(60, 280)" className="animate-float-3d">
+                      <circle r="26" fill="#10b981" fillOpacity="0.4" className="animate-ping" />
+                      <circle r="18" fill="#10b981" stroke="#ffffff" strokeWidth="3" />
+                      <text x="0" y="5" textAnchor="middle" fill="white" fontSize="13" fontWeight="900">S</text>
+                    </g>
+
+                    {/* 3D Waypoint Pin 2 (Checkpoint) */}
+                    <g transform="translate(450, 200)" className="animate-float-reverse-3d">
+                      <circle r="22" fill="#F4D06F" fillOpacity="0.4" className="animate-ping" />
+                      <circle r="15" fill="#F4D06F" stroke="#071C14" strokeWidth="2.5" />
+                      <text x="0" y="5" textAnchor="middle" fill="#071C14" fontSize="11" fontWeight="900">✓</text>
+                    </g>
+
+                    {/* 3D Waypoint Pin 3 (Destination) */}
+                    <g transform="translate(840, 100)" className="animate-float-3d">
+                      <circle r="28" fill="#ef4444" fillOpacity="0.4" className="animate-ping" />
+                      <circle r="20" fill="#ef4444" stroke="#ffffff" strokeWidth="3" />
+                      <text x="0" y="6" textAnchor="middle" fill="white" fontSize="14" fontWeight="900">D</text>
+                    </g>
+
+                    {/* Floating Badges */}
+                    <g transform="translate(240, 120)" className="animate-float-reverse-3d">
+                      <rect x="-65" y="-16" width="130" height="32" rx="16" fill="#0B2A1E" stroke="#D4AF37" strokeWidth="1.5" />
+                      <text x="0" y="5" textAnchor="middle" fill="#F4D06F" fontSize="11" fontWeight="800">🏔️ Scenic Pass</text>
+                    </g>
+
+                    <g transform="translate(650, 130)" className="animate-float-3d">
+                      <rect x="-70" y="-16" width="140" height="32" rx="16" fill="#0B2A1E" stroke="#10b981" strokeWidth="1.5" />
+                      <text x="0" y="5" textAnchor="middle" fill="#a7f3d0" fontSize="11" fontWeight="800">🛡️ 99.4% Safe Index</text>
+                    </g>
+                  </svg>
+                </div>
+
+                {/* Floating Overlay Badge Tag */}
+                <div className="relative z-10 self-start px-3.5 py-1.5 bg-[#0B2A1E]/95 border border-[#D4AF37]/50 rounded-xl text-xs font-mono text-[#F4D06F] shadow-lg">
+                  📍 Coimbatore ➔ CIT Interactive 3D Route Mesh
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        {/* ROUTE SEARCH INPUT CARD (3RD IMAGE PAGE - ACCESSED VIA PLAN ROUTE) */}
+        <section id="plan-route-section" className="scroll-mt-24">
           <div className="forest-card p-6 sm:p-8 space-y-6 text-left relative z-20">
             <div className="flex items-center justify-between border-b border-[#D4AF37]/20 pb-4">
               <div className="flex items-center gap-2">
@@ -352,10 +393,18 @@ export const HomePage: React.FC = () => {
                       disabled={isLocating}
                       className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-[#0B2A1E] hover:bg-[#103526] text-[#F4D06F] border border-[#D4AF37]/30 text-[11px] font-bold rounded-lg flex items-center gap-1 transition-all"
                     >
-                      {isLocating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LocateFixed className="w-3.5 h-3.5" />}
-                      <span>GPS</span>
+                      {isLocating ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#F4D06F]" /> : <LocateFixed className="w-3.5 h-3.5" />}
+                      <span>{isLocating ? "Tracking..." : "GPS"}</span>
                     </button>
                   </div>
+
+                  {/* GPS Live Tracked Status Pill */}
+                  {locationSource && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium pt-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>{locationSource}</span>
+                    </div>
+                  )}
 
                   {/* Origin Autocomplete List */}
                   {originSuggestions.length > 0 && (

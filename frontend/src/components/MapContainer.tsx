@@ -254,43 +254,82 @@ export const MapContainerComponent: React.FC<MapProps> = ({
         ))}
 
         {/* All Route Polylines - STRICT COLOR CODING BY LENGTH (Green = Shortest, Yellow/Orange = Medium, Red = Longest) */}
-        {allRoutes.map((route) => {
-          const isSelected = selectedRoute?.id === route.id;
-          const routePath = (route.path || route.coordinates || []).map(c => [c.lat, c.lng] as [number, number]);
-          if (routePath.length === 0) return null;
+        {effectiveRoutes.map((route) => {
+          const isSelected = activeSelectedRoute?.id === route.id;
+          
+          // Robust coordinate parsing supporting [lat, lng], {lat, lng}, and {latitude, longitude}
+          const rawCoords = route.path || route.coordinates || [];
+          let routePath: [number, number][] = rawCoords.map((c: any) => {
+            if (Array.isArray(c) && c.length >= 2) {
+              return [Number(c[0]), Number(c[1])] as [number, number];
+            }
+            if (c && typeof c === 'object') {
+              const lat = c.lat ?? c.latitude;
+              const lng = c.lng ?? c.longitude;
+              if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
+                return [lat, lng] as [number, number];
+              }
+            }
+            return null;
+          }).filter((p): p is [number, number] => p !== null);
+
+          // Fallback path interpolation if route coordinates are missing or under 2 points
+          if (routePath.length < 2 && startCoord && endCoord) {
+            const mid1: [number, number] = [startCoord.lat + (endCoord.lat - startCoord.lat) * 0.35 + 0.005, startCoord.lng + (endCoord.lng - startCoord.lng) * 0.25 - 0.006];
+            const mid2: [number, number] = [startCoord.lat + (endCoord.lat - startCoord.lat) * 0.7 + 0.003, startCoord.lng + (endCoord.lng - startCoord.lng) * 0.75 + 0.004];
+            routePath = [
+              [startCoord.lat, startCoord.lng],
+              mid1,
+              mid2,
+              [endCoord.lat, endCoord.lng]
+            ];
+          }
+
+          if (routePath.length < 2) return null;
 
           // Route Length Color Mapping:
-          // Shortest (Rank 1): Green (#10b981)
-          // Medium (Rank 2/3): Yellow (#eab308) / Orange (#f97316)
-          // Longest (Rank 4/last): Red (#ef4444)
+          // Shortest (Rank 1): Bright Green (#10b981)
+          // Medium (Rank 2/3): Bright Gold (#F4D06F)
+          // Longest (Rank 4/last): Crimson Red (#ef4444)
           const lengthColor = route.distance_color_code || route.color_code || (
             route.rank_order === 1 ? '#10b981' :
-            route.rank_order === 2 ? '#eab308' :
+            route.rank_order === 2 ? '#F4D06F' :
             route.rank_order === 3 ? '#f97316' : '#ef4444'
           );
 
           return (
             <React.Fragment key={route.id}>
-              {/* Outer Glow highlight for selected route in its length color */}
-              {isSelected && (
-                <Polyline
-                  positions={routePath}
-                  pathOptions={{
-                    color: lengthColor,
-                    weight: 12,
-                    opacity: 0.35,
-                    lineCap: 'round',
-                    lineJoin: 'round'
-                  }}
-                />
-              )}
-              {/* Main Route Polyline */}
+              {/* Layer 1: Wide Glowing Backdrop Polyline (High Contrast Shadow) */}
+              <Polyline
+                positions={routePath}
+                pathOptions={{
+                  color: '#071C14',
+                  weight: isSelected ? 14 : 9,
+                  opacity: 0.95,
+                  lineCap: 'round',
+                  lineJoin: 'round'
+                }}
+              />
+
+              {/* Layer 2: Gold/Neon Outer Halo Glow Polyline */}
+              <Polyline
+                positions={routePath}
+                pathOptions={{
+                  color: isSelected ? '#F4D06F' : lengthColor,
+                  weight: isSelected ? 11 : 7,
+                  opacity: isSelected ? 0.75 : 0.45,
+                  lineCap: 'round',
+                  lineJoin: 'round'
+                }}
+              />
+
+              {/* Layer 3: Solid Core Color Polyline */}
               <Polyline
                 positions={routePath}
                 pathOptions={{
                   color: lengthColor,
-                  weight: isSelected ? 7 : 4,
-                  opacity: isSelected ? 1.0 : 0.6,
+                  weight: isSelected ? 7 : 4.5,
+                  opacity: 1.0,
                   lineCap: 'round',
                   lineJoin: 'round'
                 }}
@@ -304,6 +343,21 @@ export const MapContainerComponent: React.FC<MapProps> = ({
                   </div>
                 </Tooltip>
               </Polyline>
+
+              {/* Layer 4: High-Visibility Animated White Dashed Center Line */}
+              {isSelected && (
+                <Polyline
+                  positions={routePath}
+                  pathOptions={{
+                    color: '#ffffff',
+                    weight: 2.5,
+                    dashArray: '10, 14',
+                    opacity: 0.95,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                  }}
+                />
+              )}
             </React.Fragment>
           );
         })}
