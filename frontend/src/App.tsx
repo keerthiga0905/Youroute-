@@ -14,6 +14,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { FamilySafetyPage } from './pages/FamilySafetyPage';
 import { FamilyConsentPage } from './pages/FamilyConsentPage';
+import { LocationConsentPage } from './pages/LocationConsentPage';
 
 export const App: React.FC = () => {
   return (
@@ -28,6 +29,7 @@ export const App: React.FC = () => {
               <Route path="/plan-route" element={<RouteResultsPage />} />
               <Route path="/family-safety" element={<FamilySafetyPage />} />
               <Route path="/family-safety/accept" element={<FamilyConsentPage />} />
+              <Route path="/location/share/:token" element={<LocationConsentPage />} />
               <Route path="/results" element={<RouteResultsPage />} />
               <Route path="/trips" element={<MyTripsPage />} />
               <Route path="/saved" element={<SavedPlacesPage />} />
@@ -38,6 +40,7 @@ export const App: React.FC = () => {
             </Routes>
           </ErrorBoundary>
         </main>
+
 
         <Footer />
       </div>

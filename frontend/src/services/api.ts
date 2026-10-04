@@ -332,4 +332,44 @@ export const resendFamilyInvite = async (inviteId: number) => {
   return response.data;
 };
 
+// --- Secure Location Sharing via Email API Functions ---
+export const sendLocationShareRequestViaEmail = async (recipientEmail: string) => {
+  await ensureDemoSession();
+  const response = await api.post('/location/request', { recipientEmail });
+  return response.data;
+};
+
+export const getLocationShareTokenDetails = async (token: string) => {
+  const response = await api.get(`/location/share/${token}`);
+  return response.data;
+};
+
+export const submitSharedLocationCoordinates = async (payload: {
+  token: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+}) => {
+  const response = await api.post('/location/share', payload);
+  return response.data;
+};
+
+export const declineLocationShareRequest = async (token: string) => {
+  const response = await api.post('/location/decline', { token });
+  return response.data;
+};
+
+export const getUserLocationShareRequests = async () => {
+  await ensureDemoSession();
+  const response = await api.get('/location/requests');
+  return response.data;
+};
+
+export const deleteUserLocationShareRequest = async (id: number) => {
+  await ensureDemoSession();
+  const response = await api.delete(`/location/requests/${id}`);
+  return response.data;
+};
+
+
 

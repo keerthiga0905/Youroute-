@@ -10,9 +10,11 @@ interface FamilyMapProps {
   userLocation?: { lat: number; lng: number } | null;
   emergencies?: FamilyEmergencyAlert[];
   selectedMemberId?: number | null;
+  sharedLocation?: { lat: number; lng: number; label: string; accuracy?: number | null; timestamp?: string } | null;
   onSelectMember?: (member: ConnectedFamilyMember) => void;
   onRouteToMember?: (member: ConnectedFamilyMember) => void;
 }
+
 
 const getRelationshipEmoji = (relationship: string): string => {
   const rel = relationship.toLowerCase();
@@ -124,6 +126,36 @@ const createUserLocationIcon = () => {
   });
 };
 
+const createSharedLocationIcon = () => {
+  return L.divIcon({
+    className: 'shared-location-email-pin',
+    html: `
+      <div style="position: relative; width: 46px; height: 46px; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; width: 46px; height: 46px; border-radius: 50%; background: rgba(212, 175, 55, 0.35); animation: pulse 2s infinite;"></div>
+        <div style="
+          position: absolute;
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          background-color: #041a12;
+          border: 3px solid #d4af37;
+          box-shadow: 0 0 16px rgba(212, 175, 55, 0.9);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #d4af37;
+          font-size: 20px;
+        ">
+          📍
+        </div>
+      </div>
+    `,
+    iconSize: [46, 46],
+    iconAnchor: [23, 23],
+    popupAnchor: [0, -23]
+  });
+};
+
 // Map Recenter View Helper
 const MapRecenter: React.FC<{ center: [number, number]; zoom?: number }> = ({ center, zoom = 14 }) => {
   const map = useMap();
@@ -136,26 +168,31 @@ const MapRecenter: React.FC<{ center: [number, number]; zoom?: number }> = ({ ce
 };
 
 export const FamilyMap: React.FC<FamilyMapProps> = ({
+
   members,
   userLocation,
   emergencies = [],
   selectedMemberId,
+  sharedLocation,
   onSelectMember,
   onRouteToMember
 }) => {
-  // Default map center: Tamil Nadu / User Location / First Member Location
+  // Default map center: Tamil Nadu / User Location / Shared Location / First Member Location
   let defaultCenter: [number, number] = [11.0168, 76.9558]; // Coimbatore default
 
-  const activeMemberWithLoc = members.find(m => m.id === selectedMemberId && m.latitude && m.longitude);
-
-  if (activeMemberWithLoc && activeMemberWithLoc.latitude && activeMemberWithLoc.longitude) {
-    defaultCenter = [activeMemberWithLoc.latitude, activeMemberWithLoc.longitude];
-  } else if (userLocation) {
-    defaultCenter = [userLocation.lat, userLocation.lng];
+  if (sharedLocation && sharedLocation.lat && sharedLocation.lng) {
+    defaultCenter = [sharedLocation.lat, sharedLocation.lng];
   } else {
-    const validMember = members.find(m => m.latitude && m.longitude);
-    if (validMember && validMember.latitude && validMember.longitude) {
-      defaultCenter = [validMember.latitude, validMember.longitude];
+    const activeMemberWithLoc = members.find(m => m.id === selectedMemberId && m.latitude && m.longitude);
+    if (activeMemberWithLoc && activeMemberWithLoc.latitude && activeMemberWithLoc.longitude) {
+      defaultCenter = [activeMemberWithLoc.latitude, activeMemberWithLoc.longitude];
+    } else if (userLocation) {
+      defaultCenter = [userLocation.lat, userLocation.lng];
+    } else {
+      const validMember = members.find(m => m.latitude && m.longitude);
+      if (validMember && validMember.latitude && validMember.longitude) {
+        defaultCenter = [validMember.latitude, validMember.longitude];
+      }
     }
   }
 
@@ -173,6 +210,58 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({
         />
 
         <MapRecenter center={defaultCenter} />
+
+        {/* Shared Location Marker via Email Consent */}
+        {sharedLocation && sharedLocation.lat && sharedLocation.lng && (
+          <React.Fragment>
+            {sharedLocation.accuracy && (
+              <Circle
+                center={[sharedLocation.lat, sharedLocation.lng]}
+                radius={sharedLocation.accuracy}
+                pathOptions={{
+                  color: '#d4af37',
+                  fillColor: '#d4af37',
+                  fillOpacity: 0.2,
+                  weight: 2
+                }}
+              />
+            )}
+            <Marker
+              position={[sharedLocation.lat, sharedLocation.lng]}
+              icon={createSharedLocationIcon()}
+            >
+              <Tooltip permanent direction="top" offset={[0, -25]}>
+                <div className="font-sans font-extrabold text-xs text-[#041a12] flex items-center gap-1">
+                  <span>📍</span>
+                  <span>Shared Location</span>
+                </div>
+              </Tooltip>
+
+              <Popup minWidth={260}>
+                <div className="p-3 font-sans bg-[#041a12] text-white rounded-xl border border-[#d4af37]/40 shadow-xl">
+                  <div className="flex items-center gap-2 font-black text-[#d4af37] border-b border-[#d4af37]/30 pb-2 mb-2">
+                    <MapPin className="w-5 h-5 text-[#d4af37]" />
+                    <span>📍 Shared Location</span>
+                  </div>
+                  <p className="text-xs text-emerald-100 mb-1">
+                    Recipient: <strong className="text-white">{sharedLocation.label}</strong>
+                  </p>
+                  <div className="space-y-1 text-xs text-emerald-300 font-mono bg-[#062b1e] p-2 rounded-lg border border-emerald-500/20 mb-2">
+                    <div>Latitude: {sharedLocation.lat.toFixed(6)}</div>
+                    <div>Longitude: {sharedLocation.lng.toFixed(6)}</div>
+                    {sharedLocation.accuracy && (
+                      <div className="text-[11px] text-amber-300">Accuracy: ±{Math.round(sharedLocation.accuracy)} m</div>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-emerald-400/70 text-right">
+                    Last shared location • Explicitly consented
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          </React.Fragment>
+        )}
+
 
         {/* User Location Marker */}
         {userLocation && (

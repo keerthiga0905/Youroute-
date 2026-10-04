@@ -357,4 +357,19 @@ class LocationHistoryRecord(Base):
 
     user = sa_relationship("User")
 
+class LocationShareRequest(Base):
+    __tablename__ = "location_share_requests"
 
+    id = Column(Integer, primary_key=True, index=True)
+    requester_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    recipient_email = Column(String, index=True, nullable=False)
+    token = Column(String, unique=True, index=True, nullable=False)
+    status = Column(String, default="PENDING") # PENDING, ACCEPTED, DECLINED, EXPIRED
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    accuracy = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    requester = sa_relationship("User", foreign_keys="LocationShareRequest.requester_id")

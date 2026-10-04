@@ -17,12 +17,15 @@ import {
   Volume2, VolumeX, ShieldAlert, Sparkles, CheckCircle2, XCircle, Loader2,
   Smartphone, Mail, Zap, ExternalLink, ShieldCheck, Cpu, Radar, BellRing
 } from 'lucide-react';
+import { LocationRequestForm } from '../components/LocationRequestForm';
 
 export const FamilySafetyPage: React.FC = () => {
   const navigate = useNavigate();
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'add' | 'map' | 'privacy' | 'history' | 'emergency_history'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'add' | 'email_share' | 'map' | 'privacy' | 'history' | 'emergency_history'>('dashboard');
+  const [selectedSharedLocation, setSelectedSharedLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
+
 
   // Connection Method Sub-tab
   const [connectMethod, setConnectMethod] = useState<'email' | 'direct' | 'qr'>('email');
@@ -650,11 +653,13 @@ export const FamilySafetyPage: React.FC = () => {
           {[
             { id: 'dashboard', label: 'Dashboard Overview', icon: Activity, badge: connectedMembers.length },
             { id: 'add', label: 'Add Family Member', icon: UserPlus, highlight: true },
+            { id: 'email_share', label: 'Email Location Request', icon: Mail, highlight: true },
             { id: 'map', label: 'Live Family Map', icon: MapPin, badge: connectedMembers.filter(m => m.location_sharing_active).length },
             { id: 'privacy', label: 'Safety & Privacy', icon: Lock },
             { id: 'history', label: 'Location History', icon: Clock },
             { id: 'emergency_history', label: 'SOS Logs & Evidence', icon: ShieldAlert, badge: emergencyHistory.length }
           ].map(tab => {
+
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
@@ -731,8 +736,21 @@ export const FamilySafetyPage: React.FC = () => {
           </div>
         )}
 
+        {/* ----------------- TAB: SECURE EMAIL LOCATION SHARING ----------------- */}
+        {activeTab === 'email_share' && (
+          <div className="max-w-4xl mx-auto space-y-6 animate-fadeIn">
+            <LocationRequestForm
+              onSelectSharedLocation={(lat, lng, email) => {
+                setSelectedSharedLocation({ lat, lng, label: email });
+                setActiveTab('map');
+              }}
+            />
+          </div>
+        )}
+
         {/* ----------------- TAB 1: ADD FAMILY MEMBER ----------------- */}
         {activeTab === 'add' && (
+
           <div className="space-y-8 animate-fadeIn">
             {/* Header Title Banner */}
             <div className="relative p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-950 border border-slate-800/80 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-2xl overflow-hidden">
@@ -1461,7 +1479,9 @@ export const FamilySafetyPage: React.FC = () => {
                 userLocation={userLocation}
                 selectedMemberId={selectedMember?.id}
                 emergencies={emergencies}
+                sharedLocation={selectedSharedLocation}
               />
+
             </div>
           </div>
         )}

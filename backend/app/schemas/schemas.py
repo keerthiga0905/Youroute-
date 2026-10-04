@@ -313,4 +313,43 @@ class LocationSharingSettingsPayload(BaseModel):
     voice_detection_enabled: Optional[bool] = False
     media_recording_enabled: Optional[bool] = True
 
+# --- Location Sharing Via Email Schemas ---
+class LocationShareRequestCreate(BaseModel):
+    recipientEmail: Optional[str] = None
+    recipient_email: Optional[str] = None
+
+class LocationShareSubmit(BaseModel):
+    token: str
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+
+class LocationShareDecline(BaseModel):
+    token: str
+
+class LocationShareDetailsResponse(BaseModel):
+    valid: bool
+    status: str
+    requester_name: str
+    recipient_email: str
+    expires_at: datetime
+    created_at: datetime
+
+class LocationShareRequestResponse(BaseModel):
+    id: int
+    recipient_email: str
+    token: str
+    status: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    accuracy: Optional[float] = None
+    created_at: datetime
+    expires_at: datetime
+    updated_at: datetime
+    requester_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 
