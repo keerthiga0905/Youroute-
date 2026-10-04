@@ -205,7 +205,7 @@ export const HomePage: React.FC = () => {
   };
 
   return (
-    <WeatherBackground condition="Clear">
+    <WeatherBackground condition="Clear" defaultImage="/assets/home_hero_map_bg.jpg">
       <div className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-16">
         
         {/* HERO SECTION */}
@@ -231,16 +231,23 @@ export const HomePage: React.FC = () => {
             </p>
           </div>
 
-          {/* 3D MAP JOURNEY ILLUSTRATION CANVAS CARD (MATCHES USER REFERENCE IMAGE CONCEPT) */}
+          {/* 3D MAP JOURNEY ILLUSTRATION CANVAS CARD */}
           <div className="perspective-3d my-8 max-w-4xl mx-auto">
-            <div className="tilt-card-3d relative rounded-3xl p-6 bg-gradient-to-br from-[#0B2A1E]/90 via-[#103526]/85 to-[#071C14]/95 border-2 border-[#D4AF37]/40 shadow-[0_30px_80px_rgba(0,0,0,0.8)] backdrop-blur-2xl overflow-hidden group">
+            <div className="tilt-card-3d relative rounded-3xl p-6 border-2 border-[#D4AF37]/50 shadow-[0_30px_80px_rgba(0,0,0,0.85)] backdrop-blur-2xl overflow-hidden group min-h-[300px] flex flex-col justify-between">
               
-              {/* Background Glows */}
-              <div className="absolute top-0 right-0 w-72 h-72 bg-[#D4AF37]/10 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute bottom-0 left-0 w-72 h-72 bg-[#064E3B]/30 rounded-full blur-3xl pointer-events-none" />
+              {/* Background Image Layer: 3D Isometric Map Illustration */}
+              <div
+                className="absolute inset-0 z-0 bg-cover bg-center filter brightness-[0.8] contrast-[1.15] group-hover:scale-105 transition-transform duration-700"
+                style={{ backgroundImage: 'url("/assets/interactive_route_card_bg.jpg")' }}
+              />
+              <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#071C14]/90 via-[#0B2A1E]/40 to-[#071C14]/70" />
 
-              {/* Interactive SVG 3D Animated Route Illustration */}
-              <div className="relative h-64 sm:h-72 w-full flex items-center justify-center">
+              {/* Background Glows */}
+              <div className="absolute top-0 right-0 w-72 h-72 bg-[#D4AF37]/15 rounded-full blur-3xl pointer-events-none z-0" />
+              <div className="absolute bottom-0 left-0 w-72 h-72 bg-[#064E3B]/40 rounded-full blur-3xl pointer-events-none z-0" />
+
+              {/* Interactive SVG 3D Animated Overlay Route */}
+              <div className="relative z-10 h-64 sm:h-72 w-full flex items-center justify-center">
                 <svg viewBox="0 0 900 360" className="w-full h-full object-contain">
                   
                   {/* Curved Path Road */}
@@ -250,53 +257,54 @@ export const HomePage: React.FC = () => {
                     stroke="#064E3B"
                     strokeWidth="16"
                     strokeLinecap="round"
+                    className="opacity-70"
                   />
                   <path
                     d="M 60 280 Q 250 80, 450 200 T 840 100"
                     fill="none"
-                    stroke="#D4AF37"
-                    strokeWidth="4"
-                    strokeDasharray="12 12"
-                    className="animate-road-dash"
+                    stroke="#F4D06F"
+                    strokeWidth="5"
+                    strokeDasharray="14 14"
+                    className="animate-road-dash shadow-[0_0_15px_#F4D06F]"
                   />
 
                   {/* 3D Waypoint Pin 1 (Origin) */}
                   <g transform="translate(60, 280)" className="animate-float-3d">
-                    <circle r="22" fill="#10b981" fillOpacity="0.3" className="animate-ping" />
-                    <circle r="14" fill="#10b981" stroke="#ffffff" strokeWidth="2.5" />
-                    <text x="0" y="5" textAnchor="middle" fill="white" fontSize="12" fontWeight="900">S</text>
+                    <circle r="24" fill="#10b981" fillOpacity="0.4" className="animate-ping" />
+                    <circle r="16" fill="#10b981" stroke="#ffffff" strokeWidth="3" />
+                    <text x="0" y="5" textAnchor="middle" fill="white" fontSize="13" fontWeight="900">S</text>
                   </g>
 
                   {/* 3D Waypoint Pin 2 (Checkpoint) */}
                   <g transform="translate(450, 200)" className="animate-float-reverse-3d">
-                    <circle r="18" fill="#F4D06F" fillOpacity="0.3" className="animate-ping" />
-                    <circle r="12" fill="#F4D06F" stroke="#071C14" strokeWidth="2" />
-                    <text x="0" y="4" textAnchor="middle" fill="#071C14" fontSize="10" fontWeight="900">✓</text>
+                    <circle r="20" fill="#F4D06F" fillOpacity="0.4" className="animate-ping" />
+                    <circle r="14" fill="#F4D06F" stroke="#071C14" strokeWidth="2.5" />
+                    <text x="0" y="5" textAnchor="middle" fill="#071C14" fontSize="11" fontWeight="900">✓</text>
                   </g>
 
                   {/* 3D Waypoint Pin 3 (Destination) */}
                   <g transform="translate(840, 100)" className="animate-float-3d">
-                    <circle r="24" fill="#ef4444" fillOpacity="0.3" className="animate-ping" />
-                    <circle r="16" fill="#ef4444" stroke="#ffffff" strokeWidth="2.5" />
-                    <text x="0" y="5" textAnchor="middle" fill="white" fontSize="13" fontWeight="900">D</text>
+                    <circle r="26" fill="#ef4444" fillOpacity="0.4" className="animate-ping" />
+                    <circle r="18" fill="#ef4444" stroke="#ffffff" strokeWidth="3" />
+                    <text x="0" y="6" textAnchor="middle" fill="white" fontSize="14" fontWeight="900">D</text>
                   </g>
 
                   {/* Floating Badges */}
                   <g transform="translate(240, 120)" className="animate-float-reverse-3d">
-                    <rect x="-60" y="-15" width="120" height="30" rx="15" fill="#0B2A1E" stroke="#D4AF37" strokeWidth="1.5" />
-                    <text x="0" y="4" textAnchor="middle" fill="#F4D06F" fontSize="11" fontWeight="800">🏔️ Scenic Pass</text>
+                    <rect x="-65" y="-16" width="130" height="32" rx="16" fill="#0B2A1E" stroke="#D4AF37" strokeWidth="1.5" />
+                    <text x="0" y="5" textAnchor="middle" fill="#F4D06F" fontSize="11" fontWeight="800">🏔️ Scenic Pass</text>
                   </g>
 
                   <g transform="translate(650, 130)" className="animate-float-3d">
-                    <rect x="-65" y="-15" width="130" height="30" rx="15" fill="#0B2A1E" stroke="#10b981" strokeWidth="1.5" />
-                    <text x="0" y="4" textAnchor="middle" fill="#a7f3d0" fontSize="11" fontWeight="800">🛡️ 99.4% Safe Index</text>
+                    <rect x="-70" y="-16" width="140" height="32" rx="16" fill="#0B2A1E" stroke="#10b981" strokeWidth="1.5" />
+                    <text x="0" y="5" textAnchor="middle" fill="#a7f3d0" fontSize="11" fontWeight="800">🛡️ 99.4% Safe Index</text>
                   </g>
                 </svg>
               </div>
 
               {/* Floating Overlay Badge Tag */}
-              <div className="absolute top-4 left-4 px-3 py-1 bg-[#0B2A1E]/90 border border-[#D4AF37]/30 rounded-xl text-[11px] font-mono text-[#F4D06F]">
-                📍 Coimbatore ➔ CIT Interactive Route Mesh
+              <div className="relative z-10 self-start px-3.5 py-1.5 bg-[#0B2A1E]/95 border border-[#D4AF37]/50 rounded-xl text-xs font-mono text-[#F4D06F] shadow-lg">
+                📍 Coimbatore ➔ CIT Interactive 3D Route Mesh
               </div>
             </div>
           </div>
