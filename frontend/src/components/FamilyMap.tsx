@@ -197,7 +197,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({
   }
 
   return (
-    <div className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-slate-200 shadow-md bg-slate-100">
+    <div className="relative w-full h-[520px] rounded-2xl overflow-hidden border border-[#D4AF37]/40 shadow-[0_20px_50px_rgba(0,0,0,0.8)] bg-[#071C14]">
       <LeafletMap
         center={defaultCenter}
         zoom={13}

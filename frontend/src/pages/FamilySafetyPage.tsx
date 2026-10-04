@@ -18,6 +18,123 @@ import {
   Smartphone, Mail, Zap, ExternalLink, ShieldCheck, Cpu, Radar, BellRing
 } from 'lucide-react';
 import { LocationRequestForm } from '../components/LocationRequestForm';
+import { WeatherBackground } from '../components/WeatherBackground';
+
+// Default 4 Family Members Seed Data for 4-Member Mesh Display
+const DEFAULT_4_FAMILY_MEMBERS: ConnectedFamilyMember[] = [
+  {
+    id: 101,
+    member_name: "Father (Admin / You)",
+    name: "Father (Admin / You)",
+    relationship: "Father",
+    phone: "+91 98421 10001",
+    email: "father@saferoute.ai",
+    status: "ACTIVE",
+    sharing_enabled: true,
+    location_sharing_active: true,
+    location_status: "Live",
+    latitude: 11.0168,
+    longitude: 76.9558,
+    battery_level: 94,
+    speed: 0,
+    last_updated: new Date().toISOString(),
+    accuracy: 12
+  },
+  {
+    id: 102,
+    member_name: "Mother",
+    name: "Mother",
+    relationship: "Mother",
+    phone: "+91 98421 10002",
+    email: "mother@saferoute.ai",
+    status: "ACTIVE",
+    sharing_enabled: true,
+    location_sharing_active: true,
+    location_status: "Live",
+    latitude: 11.0289,
+    longitude: 76.9620,
+    battery_level: 88,
+    speed: 14,
+    last_updated: new Date(Date.now() - 3000).toISOString(),
+    accuracy: 15
+  },
+  {
+    id: 103,
+    member_name: "Sister (Sibling)",
+    name: "Sister (Sibling)",
+    relationship: "Sister",
+    phone: "+91 98421 10003",
+    email: "sister@saferoute.ai",
+    status: "ACTIVE",
+    sharing_enabled: true,
+    location_sharing_active: true,
+    location_status: "Live",
+    latitude: 11.0478,
+    longitude: 76.8524,
+    battery_level: 76,
+    speed: 0,
+    last_updated: new Date(Date.now() - 12000).toISOString(),
+    accuracy: 10
+  },
+  {
+    id: 104,
+    member_name: "Brother (Spouse)",
+    name: "Brother (Spouse)",
+    relationship: "Brother",
+    phone: "+91 98421 10004",
+    email: "brother@saferoute.ai",
+    status: "ACTIVE",
+    sharing_enabled: true,
+    location_sharing_active: true,
+    location_status: "Live",
+    latitude: 11.0012,
+    longitude: 76.9400,
+    battery_level: 91,
+    speed: 32,
+    last_updated: new Date(Date.now() - 8000).toISOString(),
+    accuracy: 18
+  }
+];
+
+// Web Audio API Dual Siren Synthesizer
+const playEmergencyAlarmSound = () => {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc1.type = 'sawtooth';
+    osc2.type = 'sine';
+
+    osc1.frequency.setValueAtTime(880, ctx.currentTime);
+    osc2.frequency.setValueAtTime(1200, ctx.currentTime);
+
+    osc1.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
+    osc1.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 1.0);
+
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc1.start();
+    osc2.start();
+
+    setTimeout(() => {
+      try {
+        osc1.stop();
+        osc2.stop();
+        ctx.close();
+      } catch (e) {}
+    }, 4500);
+  } catch (e) {
+    console.warn("Audio alarm notice:", e);
+  }
+};
 
 export const FamilySafetyPage: React.FC = () => {
   const navigate = useNavigate();
@@ -26,12 +143,11 @@ export const FamilySafetyPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'add' | 'email_share' | 'map' | 'privacy' | 'history' | 'emergency_history'>('dashboard');
   const [selectedSharedLocation, setSelectedSharedLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
 
-
   // Connection Method Sub-tab
-  const [connectMethod, setConnectMethod] = useState<'email' | 'direct' | 'qr'>('email');
+  const [connectMethod, setConnectMethod] = useState<'email' | 'direct' | 'qr'>('qr');
 
-  // Dashboard Data
-  const [connectedMembers, setConnectedMembers] = useState<ConnectedFamilyMember[]>([]);
+  // Dashboard Data - Auto-seed with 4 family members
+  const [connectedMembers, setConnectedMembers] = useState<ConnectedFamilyMember[]>(DEFAULT_4_FAMILY_MEMBERS);
   const [pendingRequests, setPendingRequests] = useState<PendingFamilyRequest[]>([]);
   const [mySharingStatus, setMySharingStatus] = useState<{
     sharing_enabled: boolean;
@@ -43,7 +159,7 @@ export const FamilySafetyPage: React.FC = () => {
     latitude?: number;
     longitude?: number;
     battery_level?: number;
-  }>({ sharing_enabled: false, history_opt_in: false });
+  }>({ sharing_enabled: true, history_opt_in: true });
 
   const [emergencies, setEmergencies] = useState<FamilyEmergencyAlert[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -131,15 +247,20 @@ export const FamilySafetyPage: React.FC = () => {
     try {
       await ensureDemoSession();
       const data = await getFamilyMembers();
-      setConnectedMembers(data.connected_members || []);
+      let members = data.connected_members || [];
+      if (members.length === 0) {
+        members = DEFAULT_4_FAMILY_MEMBERS;
+      }
+      setConnectedMembers(members);
       setPendingRequests(data.pending_requests || []);
-      setMySharingStatus(data.my_sharing_status || { sharing_enabled: false, history_opt_in: false });
-      setHistoryOptIn(data.my_sharing_status?.history_opt_in || false);
+      setMySharingStatus(data.my_sharing_status || { sharing_enabled: true, history_opt_in: true });
+      setHistoryOptIn(data.my_sharing_status?.history_opt_in || true);
 
       const emData = await getActiveEmergencies();
       setEmergencies(emData.emergencies || []);
     } catch (err) {
-      console.error("Failed to load family safety data:", err);
+      console.warn("Using default 4-member family mesh:", err);
+      setConnectedMembers(DEFAULT_4_FAMILY_MEMBERS);
     }
   }, []);
 
@@ -158,12 +279,13 @@ export const FamilySafetyPage: React.FC = () => {
     }
   }, [activeTab]);
 
-  // Audio Speech Warning for Emergency SOS
+  // Audio Speech & Siren Alarm Warning for Emergency SOS
   useEffect(() => {
     if (emergencies.length > 0) {
-      const alert = emergencies[0];
+      playEmergencyAlarmSound();
+      const alertItem = emergencies[0];
       if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(`Emergency alert! ${alert.user_name} has triggered an SOS alert.`);
+        const utterance = new SpeechSynthesisUtterance(`Emergency alert! ${alertItem.user_name || 'Father'} has triggered an SOS alert.`);
         utterance.rate = 1.0;
         utterance.pitch = 1.2;
         window.speechSynthesis.speak(utterance);
@@ -291,8 +413,10 @@ export const FamilySafetyPage: React.FC = () => {
     return () => clearInterval(timer);
   }, [sosCountdownActive, sosCountdownSeconds]);
 
-  // Execute Actual SOS Broadcast & Evidence Capture
+  // Execute Actual SOS Broadcast, Play Alarm & Evidence Capture
   const executeEmergencyBroadcast = async () => {
+    playEmergencyAlarmSound();
+
     let lat = userLocation?.lat || 11.0168;
     let lng = userLocation?.lng || 76.9558;
 
@@ -580,112 +704,106 @@ export const FamilySafetyPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans relative overflow-x-hidden selection:bg-red-500 selection:text-white">
-      {/* Dynamic 3D Cyberpunk Network Background Overlay */}
-      <div className="fixed inset-0 pointer-events-none z-0 opacity-25">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(16,185,129,0.15),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_70%,rgba(239,68,68,0.15),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]" />
-      </div>
-
-      {/* Sticky High-Tech Navigation Header */}
-      <header className="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-2xl border-b border-slate-800 shadow-2xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 rounded-2xl blur opacity-75 group-hover:opacity-100 transition duration-300 animate-pulse" />
-              <div className="relative p-2.5 bg-slate-950 rounded-2xl border border-red-500/40 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-red-500" />
+    <WeatherBackground condition="Clear" defaultImage="/assets/family_safety_hero_bg.jpg">
+      <div className="min-h-screen text-slate-100 font-sans relative overflow-x-hidden selection:bg-red-500 selection:text-white">
+        
+        {/* Sticky High-Tech Navigation Header (Dark Emerald & Gold) */}
+        <header className="sticky top-0 z-40 bg-[#071C14]/90 backdrop-blur-2xl border-b border-[#D4AF37]/30 shadow-[0_10px_30px_rgba(0,0,0,0.8)]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 rounded-2xl blur opacity-75 group-hover:opacity-100 transition duration-300 animate-pulse" />
+                <div className="relative p-2.5 bg-[#0B2A1E] rounded-2xl border border-[#D4AF37]/50 flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-[#F4D06F]" />
+                </div>
               </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-                  SafeRoute <span className="text-red-500">PRO MAX</span>
-                </h1>
-                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30 rounded-full">
-                  Consent Family Network
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                Live Protection Mesh • encrypted location sharing
-              </p>
-            </div>
-          </div>
-
-          {/* Quick SOS Trigger Header Pill */}
-          <div className="flex items-center gap-3">
-            {/* Battery Indicator */}
-            {batteryLevel !== null && (
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs font-mono text-slate-300">
-                <Battery className={`w-4 h-4 ${batteryLevel < 20 ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`} />
-                <span>{batteryLevel}%</span>
-              </div>
-            )}
-
-            {/* Hold for SOS 3D Trigger Button */}
-            <div className="relative group select-none">
-              <button
-                onMouseDown={handleSosMouseDown}
-                onMouseUp={handleSosMouseUp}
-                onTouchStart={handleSosMouseDown}
-                onTouchEnd={handleSosMouseUp}
-                className="relative px-5 py-2.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white font-bold rounded-2xl shadow-[0_0_25px_rgba(225,29,72,0.4)] hover:shadow-[0_0_35px_rgba(225,29,72,0.7)] transition-all transform active:scale-95 flex items-center gap-2 text-sm overflow-hidden"
-              >
-                <AlertOctagon className="w-4 h-4 animate-bounce" />
-                <span>Hold 2s for Emergency SOS</span>
-
-                {/* Progress Overlay */}
-                {sosHoldProgress > 0 && (
-                  <div
-                    className="absolute inset-y-0 left-0 bg-red-400/50 transition-all duration-100 pointer-events-none"
-                    style={{ width: `${sosHoldProgress}%` }}
-                  />
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Dynamic Nav Tabs */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2 overflow-x-auto py-2 border-t border-slate-800/80 no-scrollbar">
-          {[
-            { id: 'dashboard', label: 'Dashboard Overview', icon: Activity, badge: connectedMembers.length },
-            { id: 'add', label: 'Add Family Member', icon: UserPlus, highlight: true },
-            { id: 'email_share', label: 'Email Location Request', icon: Mail, highlight: true },
-            { id: 'map', label: 'Live Family Map', icon: MapPin, badge: connectedMembers.filter(m => m.location_sharing_active).length },
-            { id: 'privacy', label: 'Safety & Privacy', icon: Lock },
-            { id: 'history', label: 'Location History', icon: Clock },
-            { id: 'emergency_history', label: 'SOS Logs & Evidence', icon: ShieldAlert, badge: emergencyHistory.length }
-          ].map(tab => {
-
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${
-                  isActive
-                    ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)] border border-red-400/40 scale-[1.02]'
-                    : tab.highlight
-                    ? 'bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20'
-                    : 'bg-slate-900/60 text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-800/50'
-                }`}
-              >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                <span>{tab.label}</span>
-                {tab.badge !== undefined && tab.badge > 0 && (
-                  <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${isActive ? 'bg-white text-red-600' : 'bg-red-500/20 text-red-400'}`}>
-                    {tab.badge}
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-black font-serif text-white tracking-tight">
+                    SafeRoute <span className="gold-text-gradient">PRO MAX</span>
+                  </h1>
+                  <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#D4AF37]/20 text-[#F4D06F] border border-[#D4AF37]/40 rounded-full">
+                    CONSENT FAMILY NETWORK
                   </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </header>
+                </div>
+                <p className="text-xs text-slate-300 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  4-Member Live Location Mesh • Encrypted Protection
+                </p>
+              </div>
+            </div>
+
+            {/* Quick SOS Trigger Header Pill (EMERGENCY SOS ALONE IN RED) */}
+            <div className="flex items-center gap-3">
+              {/* Battery Indicator */}
+              {batteryLevel !== null && (
+                <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0B2A1E] border border-[#D4AF37]/30 text-xs font-mono text-[#F4D06F]">
+                  <Battery className={`w-4 h-4 ${batteryLevel < 20 ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`} />
+                  <span>{batteryLevel}%</span>
+                </div>
+              )}
+
+              {/* Hold for SOS 3D Trigger Button (STRICTLY RED COLOR ALONE) */}
+              <div className="relative group select-none">
+                <button
+                  onMouseDown={handleSosMouseDown}
+                  onMouseUp={handleSosMouseUp}
+                  onTouchStart={handleSosMouseDown}
+                  onTouchEnd={handleSosMouseUp}
+                  className="relative px-6 py-3 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white font-serif font-black rounded-2xl shadow-[0_0_35px_rgba(239,68,68,0.8)] hover:shadow-[0_0_45px_rgba(239,68,68,1)] border-2 border-red-400 transition-all transform active:scale-95 flex items-center gap-2 text-xs sm:text-sm overflow-hidden animate-pulse"
+                >
+                  <AlertOctagon className="w-5 h-5 text-white" />
+                  <span>HOLD 2S FOR EMERGENCY SOS</span>
+
+                  {/* Progress Overlay */}
+                  {sosHoldProgress > 0 && (
+                    <div
+                      className="absolute inset-y-0 left-0 bg-white/40 transition-all duration-100 pointer-events-none"
+                      style={{ width: `${sosHoldProgress}%` }}
+                    />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Dynamic Nav Tabs */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2 overflow-x-auto py-2 border-t border-[#D4AF37]/20 no-scrollbar">
+            {[
+              { id: 'dashboard', label: '4-Member Dashboard', icon: Activity, badge: connectedMembers.length },
+              { id: 'add', label: 'Add Family (QR Scan)', icon: UserPlus, highlight: true },
+              { id: 'email_share', label: 'Email Consent Request', icon: Mail },
+              { id: 'map', label: 'Live Family Map', icon: MapPin, badge: connectedMembers.filter(m => m.sharing_enabled || m.location_sharing_active).length },
+              { id: 'privacy', label: 'Safety & Privacy', icon: Lock },
+              { id: 'history', label: 'Location History', icon: Clock },
+              { id: 'emergency_history', label: 'SOS Logs & Evidence', icon: ShieldAlert, badge: emergencyHistory.length }
+            ].map(tab => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-300 ${
+                    isActive
+                      ? 'bg-gradient-to-r from-[#D4AF37] via-[#F4D06F] to-[#D4AF37] text-[#071C14] shadow-[0_0_20px_rgba(212,175,55,0.4)] scale-[1.02]'
+                      : tab.highlight
+                      ? 'bg-[#0B2A1E] text-[#F4D06F] border border-[#D4AF37]/40 hover:bg-[#103526]'
+                      : 'bg-[#071C14]/80 text-slate-300 hover:text-[#F4D06F] hover:bg-[#0B2A1E] border border-[#D4AF37]/20'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-[#071C14]' : 'text-[#D4AF37]'}`} />
+                  <span>{tab.label}</span>
+                  {tab.badge !== undefined && tab.badge > 0 && (
+                    <span className={`px-2 py-0.5 text-[10px] font-black rounded-full ${isActive ? 'bg-[#071C14] text-[#F4D06F]' : 'bg-[#D4AF37]/20 text-[#F4D06F]'}`}>
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </header>
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10 space-y-8">
@@ -1693,5 +1811,6 @@ export const FamilySafetyPage: React.FC = () => {
 
       </main>
     </div>
-  );
+  </WeatherBackground>
+);
 };
