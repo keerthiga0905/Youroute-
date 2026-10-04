@@ -268,6 +268,11 @@ export const HomePage: React.FC = () => {
                     className="animate-road-dash shadow-[0_0_15px_#F4D06F]"
                   />
 
+                  {/* ANIMATED 2 HIKERS BACKPACKER ILLUSTRATION WALKING ALONG ROUTE */}
+                  <g className="animate-hike-route">
+                    <image href="/assets/two_hikers.png" width="95" height="95" x="-47" y="-75" />
+                  </g>
+
                   {/* 3D Waypoint Pin 1 (Origin) */}
                   <g transform="translate(60, 280)" className="animate-float-3d">
                     <circle r="24" fill="#10b981" fillOpacity="0.4" className="animate-ping" />

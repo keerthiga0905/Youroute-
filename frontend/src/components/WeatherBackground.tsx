@@ -113,19 +113,19 @@ export const WeatherBackground: React.FC<WeatherBackgroundProps> = ({
 
         {/* Fallback Image */}
         <div
-          className="absolute inset-0 w-full h-full bg-cover bg-center transition-all duration-1000 filter brightness-[0.55] contrast-[1.1]"
+          className="absolute inset-0 w-full h-full bg-cover bg-center transition-all duration-1000 filter brightness-[0.9] contrast-[1.15] opacity-90"
           style={{ backgroundImage: `url("${activeImage}")` }}
         />
 
-        {/* Layer 1: Dark Emerald & Forest Green Gradient Overlay */}
-        <div className={`absolute inset-0 bg-gradient-to-b ${currentMedia.overlayGradient} transition-colors duration-1000`} />
+        {/* Layer 1: Dark Emerald & Forest Green Overlay (Lightened for image clarity) */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#071C14]/40 via-[#071C14]/30 to-[#0B2A1E]/50 transition-colors duration-1000" />
 
         {/* Layer 2: Subtle Gold Radial Glow & Vignette */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(212,175,55,0.12),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(6,78,59,0.25),transparent_70%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(212,175,55,0.1),transparent_70%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(6,78,59,0.2),transparent_70%)]" />
 
         {/* Subtle Luxury Marble & Grid Overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(212,175,55,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(212,175,55,0.03)_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-30" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(212,175,55,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(212,175,55,0.03)_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20" />
       </div>
 
       {/* Foreground Content */}

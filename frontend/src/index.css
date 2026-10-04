@@ -158,6 +158,28 @@
   }
 }
 
+@keyframes walkAlongRoute {
+  0% {
+    transform: translate(30px, 230px) scale(0.85);
+  }
+  25% {
+    transform: translate(200px, 110px) scale(0.9);
+  }
+  50% {
+    transform: translate(400px, 170px) scale(0.95);
+  }
+  75% {
+    transform: translate(620px, 110px) scale(0.9);
+  }
+  100% {
+    transform: translate(780px, 70px) scale(0.85);
+  }
+}
+
+.animate-hike-route {
+  animation: walkAlongRoute 14s infinite ease-in-out alternate;
+}
+
 .animate-gold-glow {
   animation: goldGlow 3s infinite ease-in-out;
 }
