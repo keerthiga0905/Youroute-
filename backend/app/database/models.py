@@ -373,3 +373,31 @@ class LocationShareRequest(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     requester = sa_relationship("User", foreign_keys="LocationShareRequest.requester_id")
+
+class FamilyChatMessage(Base):
+    __tablename__ = "family_chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    family_network_id = Column(Integer, nullable=True) # Optional group identifier or anchor connection
+    sender_name = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    message_type = Column(String, default="TEXT") # TEXT, LOCATION_SHARE, SOS_ALERT
+    location_lat = Column(Float, nullable=True)
+    location_lng = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_read = Column(Boolean, default=False)
+
+    sender = sa_relationship("User", foreign_keys="FamilyChatMessage.sender_id")
+
+class PushSubscriptionRecord(Base):
+    __tablename__ = "push_subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    endpoint = Column(Text, nullable=False)
+    p256dh = Column(Text, nullable=False)
+    auth = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = sa_relationship("User")

@@ -167,8 +167,38 @@ const MapRecenter: React.FC<{ center: [number, number]; zoom?: number }> = ({ ce
   return null;
 };
 
-export const FamilyMap: React.FC<FamilyMapProps> = ({
+// Map Fit All View Helper
+const MapFitAllControl: React.FC<{ members: ConnectedFamilyMember[]; userLocation?: { lat: number; lng: number } | null }> = ({ members, userLocation }) => {
+  const map = useMap();
+  const handleFitAll = () => {
+    const latLngs: [number, number][] = [];
+    if (userLocation) latLngs.push([userLocation.lat, userLocation.lng]);
+    members.forEach(m => {
+      if (m.latitude && m.longitude && m.sharing_enabled && m.location_status !== 'Sharing Disabled') {
+        latLngs.push([m.latitude, m.longitude]);
+      }
+    });
+    if (latLngs.length > 0) {
+      const bounds = L.latLngBounds(latLngs);
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+    }
+  };
 
+  return (
+    <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
+      <button
+        onClick={handleFitAll}
+        className="px-3 py-1.5 bg-[#0B2A1E]/90 hover:bg-[#0B2A1E] text-[#D4AF37] border border-[#D4AF37]/50 rounded-xl text-xs font-bold shadow-lg flex items-center gap-1.5 backdrop-blur-md transition-all active:scale-95 cursor-pointer"
+        title="Fit All Connected Members in View"
+      >
+        <Navigation className="w-3.5 h-3.5" />
+        Fit All Members
+      </button>
+    </div>
+  );
+};
+
+export const FamilyMap: React.FC<FamilyMapProps> = ({
   members,
   userLocation,
   emergencies = [],
@@ -210,6 +240,7 @@ export const FamilyMap: React.FC<FamilyMapProps> = ({
         />
 
         <MapRecenter center={defaultCenter} />
+        <MapFitAllControl members={members} userLocation={userLocation} />
 
         {/* Shared Location Marker via Email Consent */}
         {sharedLocation && sharedLocation.lat && sharedLocation.lng && (

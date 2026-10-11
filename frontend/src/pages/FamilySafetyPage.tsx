@@ -10,6 +10,8 @@ import {
 } from '../services/api';
 import { ConnectedFamilyMember, PendingFamilyRequest, FamilyEmergencyAlert, LocationHistoryItem } from '../types';
 import { FamilyMap } from '../components/FamilyMap';
+import { FamilyChat } from '../components/FamilyChat';
+import { FamilyQRManager } from '../components/FamilyQRManager';
 import {
   Shield, Users, UserPlus, Radio, Activity, Clock, MapPin, AlertOctagon,
   Copy, Check, Trash2, Power, Eye, EyeOff, Lock, RefreshCw, Send, AlertTriangle,
@@ -64,8 +66,13 @@ export const FamilySafetyPage: React.FC = () => {
   const navigate = useNavigate();
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'add' | 'email_share' | 'map' | 'privacy' | 'history' | 'emergency_history'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'map' | 'chat' | 'add' | 'email_share' | 'privacy' | 'history' | 'emergency_history'>('dashboard');
   const [selectedSharedLocation, setSelectedSharedLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
+
+  // Real-time WebSocket & SOS Test Mode State
+  const [wsMessage, setWsMessage] = useState<any>(null);
+  const [sosTestMode, setSosTestMode] = useState<boolean>(false);
+  const wsRef = useRef<WebSocket | null>(null);
 
   // Connection Method Sub-tab
   const [connectMethod, setConnectMethod] = useState<'email' | 'direct' | 'qr'>('qr');
@@ -188,6 +195,67 @@ export const FamilySafetyPage: React.FC = () => {
     loadFamilyData();
     const interval = setInterval(loadFamilyData, 6000);
     return () => clearInterval(interval);
+  }, [loadFamilyData]);
+
+  // Real-time WebSocket connection to backend
+  useEffect(() => {
+    const token = localStorage.getItem('access_token') || '';
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.hostname || 'localhost';
+    const wsUrl = `${protocol}//${host}:8000/api/family/ws?token=${token}`;
+
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          setWsMessage(data);
+
+          if (data.type === 'LOCATION_UPDATE') {
+            setConnectedMembers(prev => prev.map(m => {
+              if (m.member_user_id === data.member_user_id || m.name === data.name) {
+                return {
+                  ...m,
+                  latitude: data.latitude,
+                  longitude: data.longitude,
+                  accuracy: data.accuracy,
+                  speed: data.speed,
+                  heading: data.heading,
+                  battery_level: data.battery_level,
+                  last_updated: data.last_updated,
+                  location_status: 'Live'
+                };
+              }
+              return m;
+            }));
+          } else if (data.type === 'EMERGENCY_ALERT') {
+            setEmergencies(prev => {
+              if (prev.some(e => e.id === data.alert.id)) return prev;
+              return [data.alert, ...prev];
+            });
+            playEmergencyAlarmSound();
+          } else if (data.type === 'EMERGENCY_ACKNOWLEDGED') {
+            setEmergencies(prev => prev.map(e => e.id === data.event_id ? { ...e, status: 'FAMILY_ACKNOWLEDGED' } : e));
+          } else if (data.type === 'EMERGENCY_RESOLVED') {
+            setEmergencies(prev => prev.filter(e => e.id !== data.event_id));
+          } else if (data.type === 'FAMILY_MESH_UPDATED') {
+            loadFamilyData();
+          }
+        } catch (err) {}
+      };
+    } catch (err) {
+      console.log('WebSocket init notice:', err);
+    }
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
   }, [loadFamilyData]);
 
   // Load Emergency History when switching tab
@@ -336,6 +404,11 @@ export const FamilySafetyPage: React.FC = () => {
   // Execute Actual SOS Broadcast, Play Alarm & Evidence Capture
   const executeEmergencyBroadcast = async () => {
     playEmergencyAlarmSound();
+
+    if (sosTestMode) {
+      alert("🧪 [SOS TEST MODE] Emergency SOS 2-second hold triggered successfully!\n\nSynthesizer alarm and local alert verified. No real emergency notifications were dispatched to family devices.");
+      return;
+    }
 
     let lat = userLocation?.lat || 11.0168;
     let lng = userLocation?.lng || 76.9558;
@@ -655,6 +728,22 @@ export const FamilySafetyPage: React.FC = () => {
 
             {/* Quick SOS Trigger Header Pill (EMERGENCY SOS ALONE IN RED) */}
             <div className="flex items-center gap-3">
+              {/* SOS Test Mode Toggle */}
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0B2A1E] border border-[#D4AF37]/30 text-xs">
+                <span className="text-[10px] text-[#D4AF37] font-bold">SOS Test Mode:</span>
+                <button
+                  type="button"
+                  onClick={() => setSosTestMode(!sosTestMode)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${sosTestMode ? 'bg-amber-500' : 'bg-slate-700'}`}
+                  title="Toggle SOS Test Mode to test emergency alarms without dispatching real family alert"
+                >
+                  <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${sosTestMode ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+                <span className={`text-[10px] font-bold ${sosTestMode ? 'text-amber-400' : 'text-slate-400'}`}>
+                  {sosTestMode ? 'TEST' : 'LIVE'}
+                </span>
+              </div>
+
               {/* Battery Indicator */}
               {batteryLevel !== null && (
                 <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0B2A1E] border border-[#D4AF37]/30 text-xs font-mono text-[#F4D06F]">
@@ -670,10 +759,10 @@ export const FamilySafetyPage: React.FC = () => {
                   onMouseUp={handleSosMouseUp}
                   onTouchStart={handleSosMouseDown}
                   onTouchEnd={handleSosMouseUp}
-                  className="relative px-6 py-3 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white font-serif font-black rounded-2xl shadow-[0_0_35px_rgba(239,68,68,0.8)] hover:shadow-[0_0_45px_rgba(239,68,68,1)] border-2 border-red-400 transition-all transform active:scale-95 flex items-center gap-2 text-xs sm:text-sm overflow-hidden animate-pulse"
+                  className={`relative px-6 py-3 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white font-serif font-black rounded-2xl shadow-[0_0_35px_rgba(239,68,68,0.8)] hover:shadow-[0_0_45px_rgba(239,68,68,1)] border-2 ${sosTestMode ? 'border-amber-400' : 'border-red-400'} transition-all transform active:scale-95 flex items-center gap-2 text-xs sm:text-sm overflow-hidden animate-pulse`}
                 >
                   <AlertOctagon className="w-5 h-5 text-white" />
-                  <span>HOLD 2S FOR EMERGENCY SOS</span>
+                  <span>{sosTestMode ? 'HOLD 2S FOR TEST SOS' : 'HOLD 2S FOR EMERGENCY SOS'}</span>
 
                   {/* Progress Overlay */}
                   {sosHoldProgress > 0 && (
@@ -690,10 +779,11 @@ export const FamilySafetyPage: React.FC = () => {
           {/* Dynamic Nav Tabs */}
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2 overflow-x-auto py-2 border-t border-[#D4AF37]/20 no-scrollbar">
             {[
-              { id: 'dashboard', label: '4-Member Dashboard', icon: Activity, badge: connectedMembers.length },
-              { id: 'add', label: 'Add Family (QR Scan)', icon: UserPlus, highlight: true },
-              { id: 'email_share', label: 'Email Consent Request', icon: Mail },
+              { id: 'dashboard', label: 'Family Dashboard', icon: Activity, badge: connectedMembers.length },
               { id: 'map', label: 'Live Family Map', icon: MapPin, badge: connectedMembers.filter(m => m.sharing_enabled || m.location_sharing_active).length },
+              { id: 'chat', label: 'Family Group Chat', icon: MessageSquare },
+              { id: 'add', label: 'QR Mesh Connections', icon: QrCode, highlight: true },
+              { id: 'email_share', label: 'Email Consent Request', icon: Mail },
               { id: 'privacy', label: 'Safety & Privacy', icon: Lock },
               { id: 'history', label: 'Location History', icon: Clock },
               { id: 'emergency_history', label: 'SOS Logs & Evidence', icon: ShieldAlert, badge: emergencyHistory.length }
@@ -1153,132 +1243,9 @@ export const FamilySafetyPage: React.FC = () => {
               </div>
             )}
 
-            {/* ⚡ OPTION 3 CONTENT: 3D HOLOGRAPHIC QR CODE */}
+            {/* ⚡ OPTION 3 CONTENT: SECURE REAL-TIME QR MANAGER & CAMERA VIEWFINDER */}
             {connectMethod === 'qr' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* QR Code Generator Box */}
-                <div className="lg:col-span-6 p-8 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-2xl backdrop-blur-2xl space-y-6 flex flex-col items-center text-center">
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-center gap-2 text-cyan-400 text-xs font-mono font-semibold">
-                      <QrCode className="w-4 h-4" />
-                      <span>OPTION 3 • 3D QR MATRIX GENERATOR</span>
-                    </div>
-                    <h3 className="text-xl font-bold text-white">Generate Instant Pairing QR Code</h3>
-                    <p className="text-xs text-slate-400 max-w-sm">
-                      Show this glowing encrypted 3D QR token to your family member so they can scan it with their camera.
-                    </p>
-                  </div>
-
-                  {qrLoading ? (
-                    <div className="h-64 flex flex-col items-center justify-center space-y-3">
-                      <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
-                      <span className="text-xs text-cyan-300 font-mono">Generating encrypted 3D matrix...</span>
-                    </div>
-                  ) : qrToken ? (
-                    <div className="space-y-4">
-                      {renderSVGQRCode(qrToken)}
-                      <div className="flex items-center justify-center gap-3">
-                        <button
-                          onClick={() => copyToClipboard(qrToken, 'token')}
-                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-2 border border-slate-700"
-                        >
-                          {copiedToken ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-cyan-400" />}
-                          <span>{copiedToken ? 'Token Copied!' : 'Copy Token Code'}</span>
-                        </button>
-
-                        <button
-                          onClick={handleGenerateQR}
-                          className="px-4 py-2 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 text-xs font-bold rounded-xl flex items-center gap-2 border border-cyan-800"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                          <span>Refresh QR</span>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleGenerateQR}
-                      className="px-6 py-3.5 bg-gradient-to-r from-cyan-600 to-emerald-600 text-white font-bold text-sm rounded-2xl shadow-xl hover:scale-105 transition-transform"
-                    >
-                      Generate 3D QR Matrix Now
-                    </button>
-                  )}
-                </div>
-
-                {/* QR Code Scanner / Redeemer Box */}
-                <div className="lg:col-span-6 p-8 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-2xl backdrop-blur-2xl space-y-6">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono font-semibold">
-                      <Camera className="w-4 h-4" />
-                      <span>SCAN / REDEEM FAMILY QR TOKEN</span>
-                    </div>
-                    <h3 className="text-xl font-bold text-white">Scan & Connect Family Member</h3>
-                    <p className="text-xs text-slate-400">
-                      Scan the QR code displayed on your family member's screen or enter their 6-character token code below.
-                    </p>
-                  </div>
-
-                  {/* Simulated Camera Viewfinder */}
-                  <div className="relative h-44 rounded-2xl bg-slate-950 border-2 border-dashed border-cyan-500/40 flex flex-col items-center justify-center space-y-2 overflow-hidden group">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(6,182,212,0.1),transparent_70%)]" />
-                    <Camera className="w-8 h-8 text-cyan-400 animate-pulse z-10" />
-                    <span className="text-xs font-mono text-cyan-300 z-10">Camera Viewfinder Active</span>
-                    <span className="text-[10px] text-slate-500 z-10">Hold phone steady over QR code</span>
-
-                    {/* Laser line sweep */}
-                    <div className="absolute inset-x-0 h-0.5 bg-cyan-400 shadow-[0_0_10px_#06b6d4] animate-bounce top-1/2" />
-                  </div>
-
-                  <form onSubmit={handleScanQRSubmit} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                        Relationship to Scanned Member *
-                      </label>
-                      <select
-                        value={scanRelationship}
-                        onChange={(e) => setScanRelationship(e.target.value)}
-                        className="w-full px-4 py-3 bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-emerald-500"
-                      >
-                        <option value="Mother">Mother</option>
-                        <option value="Father">Father</option>
-                        <option value="Spouse">Spouse</option>
-                        <option value="Sibling">Sibling</option>
-                        <option value="Child">Child</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                        Enter 6-Character QR Token Code *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. 7X9B2K"
-                        value={scanQrInput}
-                        onChange={(e) => setScanQrInput(e.target.value.toUpperCase())}
-                        className="w-full px-4 py-3 bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white font-mono tracking-widest placeholder-slate-600 uppercase focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={scanLoading || !scanQrInput.trim()}
-                      className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-bold text-sm rounded-xl shadow-lg transition-transform active:scale-98 flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {scanLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-4 h-4" />}
-                      <span>Pair & Establish Location Mesh</span>
-                    </button>
-                  </form>
-
-                  {scanSuccess && (
-                    <div className="p-4 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                      <span>{scanSuccess}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <FamilyQRManager onConnectionEstablished={loadFamilyData} />
             )}
           </div>
         )}
@@ -1479,21 +1446,36 @@ export const FamilySafetyPage: React.FC = () => {
           </div>
         )}
 
-        {/* ----------------- TAB 3: LIVE FAMILY MAP ----------------- */}
+        {/* ----------------- TAB: REAL-TIME FAMILY GROUP CHAT ----------------- */}
+        {activeTab === 'chat' && (
+          <div className="space-y-6 animate-fadeIn">
+            <FamilyChat
+              connectedMembers={connectedMembers}
+              userLocation={userLocation}
+              incomingWebSocketMessage={wsMessage}
+              onViewLocationOnMap={(lat, lng, label) => {
+                setSelectedSharedLocation({ lat, lng, label });
+                setActiveTab('map');
+              }}
+            />
+          </div>
+        )}
+
+        {/* ----------------- TAB: LIVE FAMILY MAP ----------------- */}
         {activeTab === 'map' && (
           <div className="space-y-6 animate-fadeIn">
-            <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-2xl backdrop-blur-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="p-6 rounded-3xl bg-[#0B2A1E]/80 border border-[#D4AF37]/30 shadow-2xl backdrop-blur-2xl flex flex-col md:flex-row items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-black text-white flex items-center gap-2">
                   <MapPin className="w-6 h-6 text-red-500 animate-bounce" />
                   <span>Live Tactical Family Safety Map</span>
                 </h2>
-                <p className="text-xs text-slate-400">
-                  Real-time encrypted GPS coordinates update automatically every 5 seconds.
+                <p className="text-xs text-[#D4AF37]/80">
+                  Real-time encrypted GPS coordinates update via WebSockets and Geolocation API.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {connectedMembers.map(m => (
                   <button
                     key={m.id}
@@ -1501,7 +1483,7 @@ export const FamilySafetyPage: React.FC = () => {
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                       selectedMember?.id === m.id
                         ? 'bg-red-600 text-white shadow-lg'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        : 'bg-[#071C14] text-[#D4AF37] border border-[#D4AF37]/30 hover:bg-[#103526]'
                     }`}
                   >
                     {m.name || m.member_name}
@@ -1510,16 +1492,125 @@ export const FamilySafetyPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Map Canvas Component Container */}
-            <div className="h-[600px] rounded-3xl overflow-hidden border-2 border-slate-800 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative">
-              <FamilyMap
-                members={connectedMembers}
-                userLocation={userLocation}
-                selectedMemberId={selectedMember?.id}
-                emergencies={emergencies}
-                sharedLocation={selectedSharedLocation}
-              />
+            {/* Map and Member List Grid Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Map Canvas Container */}
+              <div className="lg:col-span-8 h-[600px] rounded-3xl overflow-hidden border-2 border-[#D4AF37]/40 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative bg-[#071C14]">
+                <FamilyMap
+                  members={connectedMembers}
+                  userLocation={userLocation}
+                  selectedMemberId={selectedMember?.id}
+                  emergencies={emergencies}
+                  sharedLocation={selectedSharedLocation}
+                />
+              </div>
 
+              {/* Alongside Member List Panel */}
+              <div className="lg:col-span-4 h-[600px] flex flex-col p-5 rounded-3xl bg-[#0B2A1E]/90 border border-[#D4AF37]/30 shadow-2xl backdrop-blur-2xl overflow-hidden">
+                <div className="flex items-center justify-between pb-3 border-b border-[#D4AF37]/20 mb-3">
+                  <h3 className="font-extrabold text-white text-sm flex items-center gap-2">
+                    <Users className="w-4 h-4 text-[#D4AF37]" />
+                    <span>Family Network Status</span>
+                  </h3>
+                  <span className="text-[11px] font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    {connectedMembers.length} Members
+                  </span>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                  {connectedMembers.length === 0 ? (
+                    <div className="text-center py-16 px-4">
+                      <p className="text-xs text-emerald-300/70 mb-3">No members connected yet.</p>
+                      <button
+                        onClick={() => setActiveTab('add')}
+                        className="px-4 py-2 bg-[#D4AF37] hover:bg-[#F4D06F] text-[#071C14] rounded-xl text-xs font-black shadow-md transition"
+                      >
+                        + Add Members via QR
+                      </button>
+                    </div>
+                  ) : (
+                    connectedMembers.map(member => {
+                      const isSelected = selectedMember?.id === member.id;
+                      const hasLocation = member.latitude && member.longitude;
+                      const isLive = member.location_status === 'Live';
+                      const isStale = member.location_status === 'Stale';
+
+                      return (
+                        <div
+                          key={member.id}
+                          onClick={() => setSelectedMember(member)}
+                          className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-gradient-to-br from-[#0B2A1E] to-[#124b37] border-red-500 shadow-lg'
+                              : 'bg-[#071C14]/80 border-[#D4AF37]/20 hover:border-[#D4AF37]/60'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl">
+                                {member.relationship.toLowerCase().includes('father') ? '👨' :
+                                 member.relationship.toLowerCase().includes('mother') ? '👩' :
+                                 member.relationship.toLowerCase().includes('daughter') ? '👧' :
+                                 member.relationship.toLowerCase().includes('son') ? '👦' : '🧑'}
+                              </span>
+                              <div>
+                                <h4 className="text-xs font-extrabold text-white">{member.name || member.member_name}</h4>
+                                <span className="text-[10px] text-[#D4AF37]">{member.relationship}</span>
+                              </div>
+                            </div>
+
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                              isLive ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' :
+                              isStale ? 'bg-amber-950 text-amber-300 border border-amber-500/40' :
+                              'bg-slate-900 text-slate-400 border border-slate-700'
+                            }`}>
+                              {isLive ? '🟢 Live' : isStale ? '🟡 Stale' : '⚫ Offline'}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1 text-[11px] text-emerald-200/70 border-t border-[#D4AF37]/10 pt-2 mb-2 font-mono">
+                            <div className="flex justify-between">
+                              <span>GPS Coordinates:</span>
+                              <span className="text-white">
+                                {hasLocation ? `${member.latitude!.toFixed(4)}, ${member.longitude!.toFixed(4)}` : 'Location Unavailable'}
+                              </span>
+                            </div>
+                            {member.accuracy && (
+                              <div className="flex justify-between">
+                                <span>Accuracy:</span>
+                                <span className="text-amber-300">±{Math.round(member.accuracy)} m</span>
+                              </div>
+                            )}
+                            {member.battery_level !== undefined && (
+                              <div className="flex justify-between">
+                                <span>Battery:</span>
+                                <span className="text-emerald-300">{member.battery_level}%</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between">
+                              <span>Updated:</span>
+                              <span>{member.last_updated ? new Date(member.last_updated).toLocaleTimeString() : 'N/A'}</span>
+                            </div>
+                          </div>
+
+                          {hasLocation && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedMember(member);
+                              }}
+                              className="w-full py-1.5 bg-[#0B2A1E] hover:bg-[#124b37] text-[#D4AF37] border border-[#D4AF37]/30 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition"
+                            >
+                              <MapPin className="w-3 h-3 text-red-400" />
+                              <span>Center on Map</span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1620,6 +1711,20 @@ export const FamilySafetyPage: React.FC = () => {
                     {historyOptIn ? 'TIMELINE ENABLED' : 'TIMELINE OFF'}
                   </button>
                 </div>
+              </div>
+
+              {/* Browser Background Location Limitation Notice */}
+              <div className="p-6 rounded-2xl bg-[#071C14] border border-[#D4AF37]/40 text-emerald-100 text-xs space-y-2 mt-6">
+                <div className="flex items-center gap-2 font-black text-[#D4AF37] text-sm">
+                  <AlertTriangle className="w-5 h-5 text-[#D4AF37]" />
+                  <span>Important Technical Notice: Browser Background Location Limitations</span>
+                </div>
+                <p className="text-emerald-200/80 leading-relaxed">
+                  Web browser security models restrict continuous GPS tracking when the application tab is placed in the background, minimized, or when mobile operating systems (Android/iOS) engage battery-saver or lock the device.
+                </p>
+                <p className="text-emerald-200/80 leading-relaxed">
+                  This application utilizes the HTML5 Geolocation API with high-accuracy adaptive intervals during active use. For guaranteed 24/7 background geofencing when the screen is locked, install as a PWA / native mobile companion with background service permissions.
+                </p>
               </div>
             </div>
           </div>

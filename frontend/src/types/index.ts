@@ -305,5 +305,24 @@ export interface LocationHistoryItem {
   battery_level?: number;
 }
 
+export interface FamilyChatMessage {
+  id: number;
+  sender_id: number;
+  sender_name: string;
+  content: string;
+  message_type: 'TEXT' | 'LOCATION_SHARE' | 'SOS_ALERT';
+  location_lat?: number;
+  location_lng?: number;
+  created_at: string;
+  is_read: boolean;
+}
 
-
+export interface FamilyQRVerification {
+  valid: boolean;
+  requester_id: number;
+  requester_name: string;
+  requester_email: string;
+  profile_image?: string;
+  expires_at: string;
+  status?: string;
+}

@@ -371,5 +371,46 @@ export const deleteUserLocationShareRequest = async (id: number) => {
   return response.data;
 };
 
+// --- Family Group Chat API Functions ---
+export const sendFamilyChatMessage = async (payload: {
+  content: string;
+  message_type?: 'TEXT' | 'LOCATION_SHARE' | 'SOS_ALERT';
+  location_lat?: number;
+  location_lng?: number;
+}) => {
+  await ensureDemoSession();
+  const response = await api.post('/family/chat/messages', payload);
+  return response.data;
+};
 
+export const getFamilyChatMessages = async (limit: number = 50, offset: number = 0) => {
+  await ensureDemoSession();
+  const response = await api.get(`/family/chat/messages?limit=${limit}&offset=${offset}`);
+  return response.data;
+};
 
+export const markFamilyChatMessagesRead = async () => {
+  await ensureDemoSession();
+  const response = await api.post('/family/chat/messages/mark-read');
+  return response.data;
+};
+
+// --- QR Verification API Function ---
+export const verifyQRConnectionToken = async (token: string) => {
+  await ensureDemoSession();
+  const response = await api.get(`/family/invite/qr/verify/${token}`);
+  return response.data;
+};
+
+// --- Web Push Notification API Functions ---
+export const subscribePushNotification = async (payload: { endpoint: string; p256dh: string; auth: string }) => {
+  await ensureDemoSession();
+  const response = await api.post('/family/push/subscribe', payload);
+  return response.data;
+};
+
+export const unsubscribePushNotification = async (endpoint: string) => {
+  await ensureDemoSession();
+  const response = await api.delete(`/family/push/unsubscribe?endpoint=${encodeURIComponent(endpoint)}`);
+  return response.data;
+};

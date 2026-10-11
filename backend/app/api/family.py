@@ -11,13 +11,15 @@ from app.core.security import decode_access_token
 from app.api.auth import get_current_user
 from app.database.models import (
     User, FamilyConnection, Invitation, LocationSharing, UserLiveLocation,
-    FamilyEmergencyAlert, EmergencyRecipientRecord, EmergencyMediaRecord, LocationHistoryRecord
+    FamilyEmergencyAlert, EmergencyRecipientRecord, EmergencyMediaRecord, LocationHistoryRecord,
+    FamilyChatMessage, PushSubscriptionRecord
 )
 from app.schemas.schemas import (
     FamilyInviteCreate, FamilyInviteResponse, InviteDetailsResponse,
     InviteActionPayload, LocationUpdatePayload, FamilyMemberResponse,
     FamilyEmergencyPayload, FamilyEmergencyAlertResponse, LocationHistoryItem,
-    LocationSharingSettingsPayload, FamilyQRInviteResponse, FamilyQRScanPayload
+    LocationSharingSettingsPayload, FamilyQRInviteResponse, FamilyQRScanPayload,
+    FamilyChatMessageCreate, FamilyChatMessageResponse, PushSubscriptionPayload
 )
 
 router = APIRouter(prefix="/family", tags=["Family Safety"])
@@ -42,18 +44,70 @@ def calculate_location_status(last_updated: Optional[datetime], sharing_enabled:
     else:
         return "Offline"
 
+# --- Helper: Transitive Family Mesh Cluster Discovery ---
+def get_family_mesh_user_ids(user_id: int, db: Session) -> set:
+    mesh_ids = {user_id}
+    queue = [user_id]
+    visited = {user_id}
+    while queue:
+        curr = queue.pop(0)
+        conns = db.query(FamilyConnection).filter(
+            ((FamilyConnection.requester_id == curr) | (FamilyConnection.member_id == curr)),
+            FamilyConnection.status == "ACTIVE"
+        ).all()
+        for c in conns:
+            neighbor = c.member_id if c.requester_id == curr else c.requester_id
+            if neighbor not in visited:
+                visited.add(neighbor)
+                mesh_ids.add(neighbor)
+                queue.append(neighbor)
+    return mesh_ids
+
 # --- WebSockets Connection Manager ---
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.user_connections: Dict[int, List[WebSocket]] = {}
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, user_id: Optional[int] = None):
         await websocket.accept()
         self.active_connections.append(websocket)
+        if user_id is not None:
+            if user_id not in self.user_connections:
+                self.user_connections[user_id] = []
+            self.user_connections[user_id].append(websocket)
 
-    def disconnect(self, websocket: WebSocket):
+    def disconnect(self, websocket: WebSocket, user_id: Optional[int] = None):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+        if user_id is not None and user_id in self.user_connections:
+            if websocket in self.user_connections[user_id]:
+                self.user_connections[user_id].remove(websocket)
+            if not self.user_connections[user_id]:
+                del self.user_connections[user_id]
+
+    async def broadcast_to_family(self, sender_id: int, message: dict, db: Session, include_sender: bool = True):
+        try:
+            target_ids = get_family_mesh_user_ids(sender_id, db)
+            if not include_sender and sender_id in target_ids:
+                target_ids = target_ids - {sender_id}
+
+            for uid in target_ids:
+                sockets = self.user_connections.get(uid, [])
+                for ws in list(sockets):
+                    try:
+                        await ws.send_json(message)
+                    except Exception:
+                        self.disconnect(ws, uid)
+
+            # Broadcast to generic active listeners
+            for ws in list(self.active_connections):
+                try:
+                    await ws.send_json(message)
+                except Exception:
+                    pass
+        except Exception as e:
+            print("broadcast_to_family error:", e)
 
     async def broadcast(self, message: dict):
         for connection in list(self.active_connections):
@@ -65,14 +119,27 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+@router.websocket("/ws/{token}")
+async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = None):
+    user_id = None
+    query_token = websocket.query_params.get("token") or token
+    if query_token:
+        try:
+            payload = decode_access_token(query_token)
+            if payload and "sub" in payload:
+                user_id = int(payload["sub"])
+        except Exception:
+            pass
+
+    await manager.connect(websocket, user_id)
     try:
         while True:
             data = await websocket.receive_text()
             await websocket.send_text(f"ACK: {data}")
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        manager.disconnect(websocket, user_id)
+    except Exception:
+        manager.disconnect(websocket, user_id)
 
 
 # 1. Option 1: Email Invitation
@@ -192,8 +259,35 @@ def generate_qr_connection_token(
     )
 
 # 4. Option 3 Scan & Confirm QR Connection
+@router.get("/invite/qr/verify/{token}")
+def verify_qr_token(token: str, db: Session = Depends(get_db)):
+    token_hash = hash_token(token)
+    invitation = db.query(Invitation).filter(
+        Invitation.secure_token_hash == token_hash,
+        Invitation.invitation_type == "QR_CODE"
+    ).first()
+
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invalid QR connection token.")
+
+    if invitation.expires_at < datetime.utcnow():
+        invitation.status = "EXPIRED"
+        db.commit()
+        raise HTTPException(status_code=400, detail="QR Code token has expired.")
+
+    requester = db.query(User).filter(User.id == invitation.requester_id).first()
+    return {
+        "valid": True,
+        "requester_id": invitation.requester_id,
+        "requester_name": requester.full_name if requester and requester.full_name else (requester.email if requester else "Family Member"),
+        "requester_email": requester.email if requester else "",
+        "profile_image": requester.profile_image if requester else None,
+        "expires_at": invitation.expires_at.isoformat(),
+        "status": invitation.status
+    }
+
 @router.post("/invite/qr/scan")
-def scan_qr_connection(
+async def scan_qr_connection(
     payload: FamilyQRScanPayload,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -248,6 +342,9 @@ def scan_qr_connection(
             loc.sharing_enabled = True
 
     db.commit()
+
+    # Broadcast mesh updated event to both parties
+    await manager.broadcast_to_family(current_user.id, {"type": "FAMILY_MESH_UPDATED"}, db, include_sender=True)
 
     return {"message": "QR Code accounts connected successfully!", "status": "ACTIVE"}
 
@@ -466,7 +563,7 @@ def get_family_members(
 # 9. Real-time Location Update Ingestion
 @router.post("/location/update")
 @router.post("/update")
-def update_user_location(
+async def update_user_location(
     payload: LocationUpdatePayload,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -513,6 +610,26 @@ def update_user_location(
         db.add(history_rec)
 
     db.commit()
+
+    # Real-time WebSocket broadcast to all connected family members
+    await manager.broadcast_to_family(
+        current_user.id,
+        {
+            "type": "LOCATION_UPDATE",
+            "member_user_id": current_user.id,
+            "name": current_user.full_name or current_user.email.split('@')[0],
+            "latitude": payload.latitude,
+            "longitude": payload.longitude,
+            "accuracy": payload.accuracy,
+            "speed": payload.speed,
+            "heading": payload.heading,
+            "battery_level": payload.battery_level,
+            "last_updated": live_loc.updated_at.isoformat(),
+            "location_status": "Live"
+        },
+        db,
+        include_sender=False
+    )
 
     return {"status": "success", "updated_at": live_loc.updated_at.isoformat()}
 
@@ -596,7 +713,7 @@ def remove_family_member(
 # 12. Trigger Emergency SOS with State Machine & Multi-Family Recipient Broadcast
 @router.post("/emergency", response_model=FamilyEmergencyAlertResponse)
 @router.post("/emergency/trigger", response_model=FamilyEmergencyAlertResponse)
-def trigger_family_emergency(
+async def trigger_family_emergency(
     payload: FamilyEmergencyPayload,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -616,7 +733,7 @@ def trigger_family_emergency(
     db.commit()
     db.refresh(alert)
 
-    # Find ALL connected active family members (Father, Mother, Daughter, Son)
+    # Find ALL connected active family members
     connections = db.query(FamilyConnection).filter(
         ((FamilyConnection.requester_id == current_user.id) | (FamilyConnection.member_id == current_user.id)),
         FamilyConnection.status == "ACTIVE"
@@ -641,6 +758,29 @@ def trigger_family_emergency(
 
     user_name = current_user.full_name or current_user.email.split('@')[0]
 
+    # Real-time WebSocket broadcast to all connected family members (including siren trigger)
+    await manager.broadcast_to_family(
+        current_user.id,
+        {
+            "type": "EMERGENCY_ALERT",
+            "alert": {
+                "id": alert.id,
+                "user_id": current_user.id,
+                "user_name": user_name,
+                "latitude": alert.latitude,
+                "longitude": alert.longitude,
+                "accuracy": alert.accuracy,
+                "trigger_method": alert.trigger_method,
+                "status": alert.status,
+                "message": alert.message,
+                "battery_level": alert.battery_level,
+                "created_at": alert.created_at.isoformat()
+            }
+        },
+        db,
+        include_sender=True
+    )
+
     return FamilyEmergencyAlertResponse(
         id=alert.id,
         user_id=current_user.id,
@@ -661,7 +801,7 @@ def trigger_family_emergency(
 
 # 13. Acknowledge Emergency Alert
 @router.post("/emergency/{event_id}/acknowledge")
-def acknowledge_emergency_alert(
+async def acknowledge_emergency_alert(
     event_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -692,6 +832,20 @@ def acknowledge_emergency_alert(
     db.commit()
 
     ack_user_name = current_user.full_name or current_user.email.split('@')[0]
+
+    await manager.broadcast_to_family(
+        current_user.id,
+        {
+            "type": "EMERGENCY_ACKNOWLEDGED",
+            "event_id": event_id,
+            "acknowledged_by": ack_user_name,
+            "acknowledged_user_id": current_user.id,
+            "status": "FAMILY_ACKNOWLEDGED"
+        },
+        db,
+        include_sender=True
+    )
+
     return {
         "message": f"{ack_user_name} has received your emergency alert.",
         "status": "FAMILY_ACKNOWLEDGED",
@@ -700,7 +854,7 @@ def acknowledge_emergency_alert(
 
 # 14. Resolve Emergency Alert
 @router.post("/emergency/{event_id}/resolve")
-def resolve_emergency_alert(
+async def resolve_emergency_alert(
     event_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -712,6 +866,20 @@ def resolve_emergency_alert(
     alert.status = "EMERGENCY_RESOLVED"
     alert.resolved_at = datetime.utcnow()
     db.commit()
+
+    resolver_name = current_user.full_name or current_user.email.split('@')[0]
+
+    await manager.broadcast_to_family(
+        current_user.id,
+        {
+            "type": "EMERGENCY_RESOLVED",
+            "event_id": event_id,
+            "resolved_by": resolver_name,
+            "status": "EMERGENCY_RESOLVED"
+        },
+        db,
+        include_sender=True
+    )
 
     return {"message": "Emergency alert marked as resolved.", "status": "EMERGENCY_RESOLVED"}
 
@@ -965,3 +1133,144 @@ def delete_location_history(
     db.query(LocationHistoryRecord).filter(LocationHistoryRecord.user_id == current_user.id).delete()
     db.commit()
     return {"message": "Location history successfully deleted."}
+
+# 22. Family Group Chat: Send Message
+@router.post("/chat/messages", response_model=FamilyChatMessageResponse)
+async def send_family_chat_message(
+    payload: FamilyChatMessageCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not payload.content or not payload.content.strip():
+        raise HTTPException(status_code=400, detail="Message content cannot be empty.")
+
+    sender_name = current_user.full_name or current_user.email.split('@')[0]
+    msg = FamilyChatMessage(
+        sender_id=current_user.id,
+        sender_name=sender_name,
+        content=payload.content.strip(),
+        message_type=payload.message_type or "TEXT",
+        location_lat=payload.location_lat,
+        location_lng=payload.location_lng,
+        created_at=datetime.utcnow(),
+        is_read=False
+    )
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+
+    response_data = {
+        "id": msg.id,
+        "sender_id": msg.sender_id,
+        "sender_name": msg.sender_name,
+        "content": msg.content,
+        "message_type": msg.message_type,
+        "location_lat": msg.location_lat,
+        "location_lng": msg.location_lng,
+        "created_at": msg.created_at.isoformat(),
+        "is_read": False
+    }
+
+    # Real-time WebSocket delivery to connected family members
+    await manager.broadcast_to_family(
+        current_user.id,
+        {
+            "type": "CHAT_MESSAGE",
+            "message": response_data
+        },
+        db,
+        include_sender=True
+    )
+
+    return FamilyChatMessageResponse(**response_data)
+
+# 23. Family Group Chat: Retrieve Messages History
+@router.get("/chat/messages")
+def get_family_chat_messages(
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    allowed_ids = get_family_mesh_user_ids(current_user.id, db)
+
+    total_count = db.query(FamilyChatMessage).filter(FamilyChatMessage.sender_id.in_(allowed_ids)).count()
+    messages = db.query(FamilyChatMessage).filter(
+        FamilyChatMessage.sender_id.in_(allowed_ids)
+    ).order_by(FamilyChatMessage.created_at.asc()).offset(offset).limit(limit).all()
+
+    items = []
+    for m in messages:
+        items.append({
+            "id": m.id,
+            "sender_id": m.sender_id,
+            "sender_name": m.sender_name,
+            "content": m.content,
+            "message_type": m.message_type,
+            "location_lat": m.location_lat,
+            "location_lng": m.location_lng,
+            "created_at": m.created_at.isoformat(),
+            "is_read": m.is_read
+        })
+
+    return {"total": total_count, "messages": items}
+
+# 24. Family Group Chat: Mark Messages Read
+@router.post("/chat/messages/mark-read")
+def mark_chat_messages_read(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    allowed_ids = get_family_mesh_user_ids(current_user.id, db)
+
+    if allowed_ids:
+        db.query(FamilyChatMessage).filter(
+            FamilyChatMessage.sender_id.in_(allowed_ids),
+            FamilyChatMessage.sender_id != current_user.id,
+            FamilyChatMessage.is_read == False
+        ).update({FamilyChatMessage.is_read: True}, synchronize_session=False)
+        db.commit()
+
+    return {"status": "success", "message": "Messages marked as read"}
+
+# 25. Web Push Notification: Subscribe
+@router.post("/push/subscribe")
+def subscribe_push_notification(
+    payload: PushSubscriptionPayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    existing = db.query(PushSubscriptionRecord).filter(
+        PushSubscriptionRecord.user_id == current_user.id,
+        PushSubscriptionRecord.endpoint == payload.endpoint
+    ).first()
+
+    if not existing:
+        sub = PushSubscriptionRecord(
+            user_id=current_user.id,
+            endpoint=payload.endpoint,
+            p256dh=payload.p256dh,
+            auth=payload.auth,
+            created_at=datetime.utcnow()
+        )
+        db.add(sub)
+    else:
+        existing.p256dh = payload.p256dh
+        existing.auth = payload.auth
+
+    db.commit()
+    return {"status": "subscribed", "message": "Push notifications successfully registered."}
+
+# 26. Web Push Notification: Unsubscribe
+@router.delete("/push/unsubscribe")
+def unsubscribe_push_notification(
+    endpoint: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    db.query(PushSubscriptionRecord).filter(
+        PushSubscriptionRecord.user_id == current_user.id,
+        PushSubscriptionRecord.endpoint == endpoint
+    ).delete()
+    db.commit()
+    return {"status": "unsubscribed", "message": "Push notifications removed."}

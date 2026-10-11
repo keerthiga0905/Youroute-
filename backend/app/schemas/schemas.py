@@ -313,6 +313,30 @@ class LocationSharingSettingsPayload(BaseModel):
     voice_detection_enabled: Optional[bool] = False
     media_recording_enabled: Optional[bool] = True
 
+# --- Family Chat Schemas ---
+class FamilyChatMessageCreate(BaseModel):
+    content: str
+    message_type: Optional[str] = "TEXT" # TEXT, LOCATION_SHARE, SOS_ALERT
+    location_lat: Optional[float] = None
+    location_lng: Optional[float] = None
+
+class FamilyChatMessageResponse(BaseModel):
+    id: int
+    sender_id: int
+    sender_name: str
+    content: str
+    message_type: str
+    location_lat: Optional[float] = None
+    location_lng: Optional[float] = None
+    created_at: str
+    is_read: bool
+
+# --- Push Notification Schemas ---
+class PushSubscriptionPayload(BaseModel):
+    endpoint: str
+    p256dh: str
+    auth: str
+
 # --- Location Sharing Via Email Schemas ---
 class LocationShareRequestCreate(BaseModel):
     recipientEmail: Optional[str] = None
