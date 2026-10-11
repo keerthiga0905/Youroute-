@@ -11,10 +11,17 @@ class Settings(BaseModel):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api"
     
-    # Security
+    # Security & Auth Settings
     JWT_SECRET: str = os.getenv("JWT_SECRET", "saferoute_super_secret_key_2026_change_in_production")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 7 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 15)) # 15 minutes
+    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", 7)) # 7 days
+    OTP_EXPIRE_MINUTES: int = int(os.getenv("OTP_EXPIRE_MINUTES", 5)) # 5 minutes
+    RESET_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("RESET_TOKEN_EXPIRE_MINUTES", 15)) # 15 minutes
+    TOKEN_ISSUER: str = os.getenv("TOKEN_ISSUER", "RouteMap-Auth")
+    TOKEN_AUDIENCE: str = os.getenv("TOKEN_AUDIENCE", "RouteMap-App")
+    RATE_LIMIT_LOGIN_ATTEMPTS: int = int(os.getenv("RATE_LIMIT_LOGIN_ATTEMPTS", 5))
+    LOCKOUT_MINUTES: int = int(os.getenv("LOCKOUT_MINUTES", 15))
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./saferoute.db")

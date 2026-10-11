@@ -18,6 +18,72 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: (value?: any) => void; reject: (reason?: any) => void }> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/login') &&
+      !originalRequest.url?.includes('/auth/refresh')
+    ) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(token => {
+            originalRequest.headers['Authorization'] = `Bearer ${token}`;
+            return api(originalRequest);
+          })
+          .catch(err => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      const refreshToken = localStorage.getItem('saferoute_refresh_token');
+      if (refreshToken) {
+        try {
+          const res = await axios.post('/api/auth/refresh', { refresh_token: refreshToken });
+          if (res.data?.access_token) {
+            localStorage.setItem('saferoute_token', res.data.access_token);
+            if (res.data.refresh_token) {
+              localStorage.setItem('saferoute_refresh_token', res.data.refresh_token);
+            }
+            processQueue(null, res.data.access_token);
+            originalRequest.headers['Authorization'] = `Bearer ${res.data.access_token}`;
+            return api(originalRequest);
+          }
+        } catch (refreshErr) {
+          processQueue(refreshErr, null);
+          localStorage.removeItem('saferoute_token');
+          localStorage.removeItem('saferoute_refresh_token');
+          localStorage.removeItem('saferoute_user');
+          return Promise.reject(refreshErr);
+        } finally {
+          isRefreshing = false;
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const ensureDemoSession = async (): Promise<string> => {
   let token = localStorage.getItem('saferoute_token');
   if (!token) {
@@ -124,35 +190,130 @@ export const deleteAllTrips = async () => {
 };
 
 // Auth & Settings APIs
-export const registerUser = async (data: any) => {
+export const registerUser = async (data: {
+  email: string;
+  password: string;
+  confirm_password?: string;
+  full_name: string;
+  phone?: string;
+  agree_to_terms?: boolean;
+}) => {
   const response = await api.post('/auth/register', data);
+  return response.data;
+};
+
+export const verifyEmail = async (data: { email: string; otp: string }) => {
+  const response = await api.post('/auth/verify-email', data);
   if (response.data.access_token) {
     localStorage.setItem('saferoute_token', response.data.access_token);
+    if (response.data.refresh_token) {
+      localStorage.setItem('saferoute_refresh_token', response.data.refresh_token);
+    }
+    if (response.data.user) {
+      localStorage.setItem('saferoute_user', JSON.stringify(response.data.user));
+    }
   }
   return response.data;
 };
 
-export const loginUser = async (data: any) => {
+export const resendVerification = async (email: string) => {
+  const response = await api.post('/auth/resend-verification', { email });
+  return response.data;
+};
+
+export const loginUser = async (data: {
+  email: string;
+  password: string;
+  remember_me?: boolean;
+}) => {
   const response = await api.post('/auth/login', data);
   if (response.data.access_token) {
     localStorage.setItem('saferoute_token', response.data.access_token);
+    if (response.data.refresh_token) {
+      localStorage.setItem('saferoute_refresh_token', response.data.refresh_token);
+    }
+    if (response.data.user) {
+      localStorage.setItem('saferoute_user', JSON.stringify(response.data.user));
+    }
   }
   return response.data;
+};
+
+export const logoutUser = async () => {
+  try {
+    await api.post('/auth/logout');
+  } catch (e) {
+    // ignore
+  } finally {
+    localStorage.removeItem('saferoute_token');
+    localStorage.removeItem('saferoute_refresh_token');
+    localStorage.removeItem('saferoute_user');
+  }
+};
+
+export const logoutAllSessions = async () => {
+  try {
+    await api.post('/auth/logout-all');
+  } catch (e) {
+    // ignore
+  } finally {
+    localStorage.removeItem('saferoute_token');
+    localStorage.removeItem('saferoute_refresh_token');
+    localStorage.removeItem('saferoute_user');
+  }
 };
 
 export const getCurrentUser = async (): Promise<User> => {
   const response = await api.get<User>('/auth/me');
+  localStorage.setItem('saferoute_user', JSON.stringify(response.data));
+  return response.data;
+};
+
+export const getStoredUser = (): User | null => {
+  const raw = localStorage.getItem('saferoute_user');
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
+export const forgotPassword = async (email: string) => {
+  const response = await api.post('/auth/forgot-password', { email });
+  return response.data;
+};
+
+export const resetPassword = async (data: {
+  token: string;
+  new_password: string;
+  confirm_password?: string;
+}) => {
+  const response = await api.post('/auth/reset-password', data);
+  return response.data;
+};
+
+export const getUserSessions = async () => {
+  const response = await api.get('/auth/sessions');
+  return response.data;
+};
+
+export const revokeSession = async (sessionId: string) => {
+  const response = await api.delete(`/auth/sessions/${sessionId}`);
   return response.data;
 };
 
 export const updatePriority = async (preferred_priority: string): Promise<User> => {
   const response = await api.put<User>('/auth/priority', { preferred_priority });
+  localStorage.setItem('saferoute_user', JSON.stringify(response.data));
   return response.data;
 };
 
 export const deleteUserAccount = async () => {
   const response = await api.delete('/auth/account');
   localStorage.removeItem('saferoute_token');
+  localStorage.removeItem('saferoute_refresh_token');
+  localStorage.removeItem('saferoute_user');
   return response.data;
 };
 

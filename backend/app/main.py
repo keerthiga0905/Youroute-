@@ -6,8 +6,14 @@ from app.database import models
 from app.database.tn_safety_data_seeder import run_seeder
 from app.api import auth, routes, trips, saved_places, emergency, weather, model, geocode, safety, navigation, admin, family, location_share
 
-# Initialize Database tables and seed datasets
+from app.database.migration import run_auth_migrations
+
+# Initialize Database tables, auth schema, and seed datasets
 Base.metadata.create_all(bind=engine)
+try:
+    run_auth_migrations()
+except Exception as e:
+    print(f"[Migration Warning]: {e}")
 try:
     run_seeder()
 except Exception as e:

@@ -7,16 +7,25 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_uuid = Column(String(36), unique=True, index=True, nullable=True)
+    public_user_id = Column(String(16), unique=True, index=True, nullable=True)
     email = Column(String, unique=True, index=True, nullable=False)
     phone = Column(String, nullable=True)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=True)
     profile_image = Column(String, nullable=True)
     preferred_priority = Column(String, default="balanced")
+    is_verified = Column(Boolean, default=False, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     histories = sa_relationship("TripHistory", back_populates="user", cascade="all, delete-orphan")
     saved_places = sa_relationship("SavedPlace", back_populates="user", cascade="all, delete-orphan")
+    sessions = sa_relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    verification_otps = sa_relationship("EmailVerificationOTP", back_populates="user", cascade="all, delete-orphan")
+    password_resets = sa_relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
 class Location(Base):
     __tablename__ = "locations"
@@ -401,3 +410,44 @@ class PushSubscriptionRecord(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = sa_relationship("User")
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_uuid = Column(String(36), unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    refresh_token_hash = Column(String(64), unique=True, index=True, nullable=False)
+    device_info = Column(String(255), nullable=True)
+    ip_address = Column(String(64), nullable=True)
+    is_revoked = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    last_used_at = Column(DateTime, default=datetime.utcnow)
+
+    user = sa_relationship("User", back_populates="sessions")
+
+class EmailVerificationOTP(Base):
+    __tablename__ = "email_verification_otps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    otp_hash = Column(String(64), nullable=False, index=True)
+    attempts = Column(Integer, default=0, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    consumed_at = Column(DateTime, nullable=True)
+
+    user = sa_relationship("User", back_populates="verification_otps")
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    consumed_at = Column(DateTime, nullable=True)
+
+    user = sa_relationship("User", back_populates="password_resets")

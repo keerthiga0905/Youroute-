@@ -128,10 +128,32 @@ export interface TripHistory {
 
 export interface User {
   id: number;
+  user_id?: string;
+  public_user_id?: string;
   email: string;
   full_name: string;
+  phone?: string;
+  is_verified?: boolean;
   preferred_priority: string;
   created_at: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  session_id: string;
+  user: User;
+}
+
+export interface UserSessionItem {
+  session_id: string;
+  device_info: string;
+  ip_address?: string;
+  created_at: string;
+  last_used_at: string;
+  is_current: boolean;
 }
 
 export interface SafetyIncidentItem {

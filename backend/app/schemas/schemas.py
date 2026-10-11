@@ -6,29 +6,77 @@ from datetime import datetime
 class UserRegister(BaseModel):
     email: str
     password: str
+    confirm_password: Optional[str] = None
     full_name: str
+    phone: Optional[str] = None
+    agree_to_terms: Optional[bool] = True
+
+class UserVerifyEmail(BaseModel):
+    email: str
+    otp: str
+
+class ResendVerificationRequest(BaseModel):
+    email: str
 
 class UserLogin(BaseModel):
     email: str
     password: str
+    remember_me: Optional[bool] = False
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+    confirm_password: Optional[str] = None
 
 class UserUpdatePriority(BaseModel):
     preferred_priority: str # fastest, balanced, lower_risk
 
 class UserResponse(BaseModel):
     id: int
+    user_id: Optional[str] = None
+    public_user_id: Optional[str] = None
     email: str
-    full_name: str
-    preferred_priority: str
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    is_verified: bool = False
+    preferred_priority: str = "balanced"
     created_at: datetime
 
     class Config:
         from_attributes = True
 
+class AuthResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int = 900
+    session_id: str
+    user: UserResponse
+
 class Token(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
+    expires_in: Optional[int] = 900
+    session_id: Optional[str] = None
     user: UserResponse
+
+class SessionResponse(BaseModel):
+    session_id: str
+    device_info: Optional[str] = None
+    ip_address: Optional[str] = None
+    created_at: datetime
+    last_used_at: datetime
+    is_current: bool = False
+
+    class Config:
+        from_attributes = True
 
 # --- Location & Route Request Schemas ---
 class Coordinate(BaseModel):
