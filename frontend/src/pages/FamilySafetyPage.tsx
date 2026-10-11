@@ -20,82 +20,6 @@ import {
 import { LocationRequestForm } from '../components/LocationRequestForm';
 import { WeatherBackground } from '../components/WeatherBackground';
 
-// Default 4 Family Members Seed Data for 4-Member Mesh Display
-const DEFAULT_4_FAMILY_MEMBERS: ConnectedFamilyMember[] = [
-  {
-    id: 101,
-    member_name: "Father (Admin / You)",
-    name: "Father (Admin / You)",
-    relationship: "Father",
-    phone: "+91 98421 10001",
-    email: "father@saferoute.ai",
-    status: "ACTIVE",
-    sharing_enabled: true,
-    location_sharing_active: true,
-    location_status: "Live",
-    latitude: 11.0168,
-    longitude: 76.9558,
-    battery_level: 94,
-    speed: 0,
-    last_updated: new Date().toISOString(),
-    accuracy: 12
-  },
-  {
-    id: 102,
-    member_name: "Mother",
-    name: "Mother",
-    relationship: "Mother",
-    phone: "+91 98421 10002",
-    email: "mother@saferoute.ai",
-    status: "ACTIVE",
-    sharing_enabled: true,
-    location_sharing_active: true,
-    location_status: "Live",
-    latitude: 11.0289,
-    longitude: 76.9620,
-    battery_level: 88,
-    speed: 14,
-    last_updated: new Date(Date.now() - 3000).toISOString(),
-    accuracy: 15
-  },
-  {
-    id: 103,
-    member_name: "Sister (Sibling)",
-    name: "Sister (Sibling)",
-    relationship: "Sister",
-    phone: "+91 98421 10003",
-    email: "sister@saferoute.ai",
-    status: "ACTIVE",
-    sharing_enabled: true,
-    location_sharing_active: true,
-    location_status: "Live",
-    latitude: 11.0478,
-    longitude: 76.8524,
-    battery_level: 76,
-    speed: 0,
-    last_updated: new Date(Date.now() - 12000).toISOString(),
-    accuracy: 10
-  },
-  {
-    id: 104,
-    member_name: "Brother (Spouse)",
-    name: "Brother (Spouse)",
-    relationship: "Brother",
-    phone: "+91 98421 10004",
-    email: "brother@saferoute.ai",
-    status: "ACTIVE",
-    sharing_enabled: true,
-    location_sharing_active: true,
-    location_status: "Live",
-    latitude: 11.0012,
-    longitude: 76.9400,
-    battery_level: 91,
-    speed: 32,
-    last_updated: new Date(Date.now() - 8000).toISOString(),
-    accuracy: 18
-  }
-];
-
 // Web Audio API Dual Siren Synthesizer
 const playEmergencyAlarmSound = () => {
   try {
@@ -146,8 +70,8 @@ export const FamilySafetyPage: React.FC = () => {
   // Connection Method Sub-tab
   const [connectMethod, setConnectMethod] = useState<'email' | 'direct' | 'qr'>('qr');
 
-  // Dashboard Data - Auto-seed with 4 family members
-  const [connectedMembers, setConnectedMembers] = useState<ConnectedFamilyMember[]>(DEFAULT_4_FAMILY_MEMBERS);
+  // Dashboard Data - Real Connected Members from Database
+  const [connectedMembers, setConnectedMembers] = useState<ConnectedFamilyMember[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingFamilyRequest[]>([]);
   const [mySharingStatus, setMySharingStatus] = useState<{
     sharing_enabled: boolean;
@@ -159,7 +83,7 @@ export const FamilySafetyPage: React.FC = () => {
     latitude?: number;
     longitude?: number;
     battery_level?: number;
-  }>({ sharing_enabled: true, history_opt_in: true });
+  }>({ sharing_enabled: false, history_opt_in: false });
 
   const [emergencies, setEmergencies] = useState<FamilyEmergencyAlert[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -242,25 +166,21 @@ export const FamilySafetyPage: React.FC = () => {
     };
   }, []);
 
-  // Load Dashboard Data
+  // Load Dashboard Data (Real Database Connected Members)
   const loadFamilyData = useCallback(async () => {
     try {
       await ensureDemoSession();
       const data = await getFamilyMembers();
-      let members = data.connected_members || [];
-      if (members.length === 0) {
-        members = DEFAULT_4_FAMILY_MEMBERS;
-      }
-      setConnectedMembers(members);
+      setConnectedMembers(data.connected_members || []);
       setPendingRequests(data.pending_requests || []);
-      setMySharingStatus(data.my_sharing_status || { sharing_enabled: true, history_opt_in: true });
-      setHistoryOptIn(data.my_sharing_status?.history_opt_in || true);
+      setMySharingStatus(data.my_sharing_status || { sharing_enabled: false, history_opt_in: false });
+      setHistoryOptIn(data.my_sharing_status?.history_opt_in || false);
 
       const emData = await getActiveEmergencies();
       setEmergencies(emData.emergencies || []);
     } catch (err) {
-      console.warn("Using default 4-member family mesh:", err);
-      setConnectedMembers(DEFAULT_4_FAMILY_MEMBERS);
+      console.error("Failed to load family safety data:", err);
+      setConnectedMembers([]);
     }
   }, []);
 
@@ -1366,50 +1286,50 @@ export const FamilySafetyPage: React.FC = () => {
         {/* ----------------- TAB 2: DASHBOARD OVERVIEW ----------------- */}
         {activeTab === 'dashboard' && (
           <div className="space-y-8 animate-fadeIn">
-            {/* 3D Stat Grid Header */}
+            {/* 3D Stat Grid Header (Dark Emerald & Gold) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800/80 shadow-xl backdrop-blur-2xl relative overflow-hidden group">
+              <div className="p-6 rounded-3xl bg-[#0B2A1E]/80 border border-[#D4AF37]/30 shadow-xl backdrop-blur-2xl relative overflow-hidden group hover:border-[#D4AF37]/60 transition-all">
                 <div className="absolute top-0 right-0 p-6 opacity-10 text-emerald-400 group-hover:scale-110 transition-transform">
                   <Users className="w-16 h-16" />
                 </div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Connected Family</span>
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Connected Family</span>
                 <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-3xl font-black text-white">{connectedMembers.length}</span>
+                  <span className="text-3xl font-black font-serif text-white">{connectedMembers.length}</span>
                   <span className="text-xs text-emerald-400 font-semibold">Active Members</span>
                 </div>
               </div>
 
-              <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800/80 shadow-xl backdrop-blur-2xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-6 opacity-10 text-amber-400 group-hover:scale-110 transition-transform">
+              <div className="p-6 rounded-3xl bg-[#0B2A1E]/80 border border-[#D4AF37]/30 shadow-xl backdrop-blur-2xl relative overflow-hidden group hover:border-[#D4AF37]/60 transition-all">
+                <div className="absolute top-0 right-0 p-6 opacity-10 text-[#F4D06F] group-hover:scale-110 transition-transform">
                   <Clock className="w-16 h-16" />
                 </div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Requests</span>
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Pending Requests</span>
                 <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-3xl font-black text-white">{pendingRequests.length}</span>
-                  <span className="text-xs text-amber-400 font-semibold">Awaiting Acceptance</span>
+                  <span className="text-3xl font-black font-serif text-white">{pendingRequests.length}</span>
+                  <span className="text-xs text-[#F4D06F] font-semibold">Awaiting Acceptance</span>
                 </div>
               </div>
 
-              <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800/80 shadow-xl backdrop-blur-2xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-6 opacity-10 text-cyan-400 group-hover:scale-110 transition-transform">
+              <div className="p-6 rounded-3xl bg-[#0B2A1E]/80 border border-[#D4AF37]/30 shadow-xl backdrop-blur-2xl relative overflow-hidden group hover:border-[#D4AF37]/60 transition-all">
+                <div className="absolute top-0 right-0 p-6 opacity-10 text-emerald-400 group-hover:scale-110 transition-transform">
                   <Radio className="w-16 h-16" />
                 </div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Location Mesh</span>
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Location Mesh</span>
                 <div className="mt-2 flex items-center gap-2">
-                  <span className={`w-3 h-3 rounded-full ${mySharingStatus.sharing_enabled ? 'bg-emerald-500 animate-ping' : 'bg-slate-600'}`} />
+                  <span className={`w-3 h-3 rounded-full ${mySharingStatus.sharing_enabled ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
                   <span className="text-sm font-extrabold text-white">
                     {mySharingStatus.sharing_enabled ? 'Location Active' : 'Sharing Paused'}
                   </span>
                 </div>
               </div>
 
-              <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800/80 shadow-xl backdrop-blur-2xl relative overflow-hidden group">
+              <div className="p-6 rounded-3xl bg-[#0B2A1E]/80 border border-[#D4AF37]/30 shadow-xl backdrop-blur-2xl relative overflow-hidden group hover:border-[#D4AF37]/60 transition-all">
                 <div className="absolute top-0 right-0 p-6 opacity-10 text-red-400 group-hover:scale-110 transition-transform">
                   <ShieldAlert className="w-16 h-16" />
                 </div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Voice SOS Protection</span>
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Voice SOS Protection</span>
                 <div className="mt-2 flex items-center gap-2">
-                  <span className={`w-3 h-3 rounded-full ${isListeningVoice ? 'bg-red-500 animate-pulse' : 'bg-slate-600'}`} />
+                  <span className={`w-3 h-3 rounded-full ${isListeningVoice ? 'bg-red-500 animate-pulse' : 'bg-slate-500'}`} />
                   <span className="text-sm font-extrabold text-white">
                     {isListeningVoice ? 'Listening Enabled' : 'Voice SOS Off'}
                   </span>
@@ -1420,13 +1340,13 @@ export const FamilySafetyPage: React.FC = () => {
             {/* Connected Family Members Grid */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-extrabold text-white flex items-center gap-2">
-                  <Users className="w-5 h-5 text-red-500" />
+                <h3 className="text-xl font-serif font-black text-white flex items-center gap-2">
+                  <Users className="w-5 h-5 text-[#F4D06F]" />
                   <span>Connected Family Members</span>
                 </h3>
                 <button
                   onClick={() => setActiveTab('add')}
-                  className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 text-xs font-bold rounded-xl flex items-center gap-2 transition-all"
+                  className="px-4 py-2 bg-[#0B2A1E] hover:bg-[#103526] text-[#F4D06F] border border-[#D4AF37]/40 text-xs font-bold rounded-xl flex items-center gap-2 transition-all"
                 >
                   <UserPlus className="w-4 h-4" />
                   <span>+ Add New Member</span>
@@ -1434,19 +1354,19 @@ export const FamilySafetyPage: React.FC = () => {
               </div>
 
               {connectedMembers.length === 0 ? (
-                <div className="p-12 rounded-3xl bg-slate-900/40 border border-slate-800/80 text-center space-y-4">
-                  <div className="w-16 h-16 mx-auto rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
+                <div className="p-12 rounded-3xl bg-[#0B2A1E]/80 border border-[#D4AF37]/30 text-center space-y-4 backdrop-blur-xl shadow-2xl">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-[#103526] border border-[#D4AF37]/40 flex items-center justify-center text-[#F4D06F]">
                     <Users className="w-8 h-8" />
                   </div>
-                  <h4 className="text-base font-bold text-white">No Connected Family Members Yet</h4>
-                  <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    Click "Add Family Member" above to invite your mother, father, spouse, or friends using Email, Direct App Push, or 3D QR Code.
+                  <h4 className="text-xl font-serif font-black text-white">No Connected Family Members Yet</h4>
+                  <p className="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
+                    Click "Add Family Member" above or use 3D QR Code scan to establish a secure, consent-based connection with your parents, spouse, or siblings.
                   </p>
                   <button
                     onClick={() => setActiveTab('add')}
-                    className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-lg"
+                    className="gold-btn-primary px-8 py-3.5 text-xs font-serif font-extrabold tracking-wider uppercase rounded-xl shadow-xl hover:scale-105 transition-all"
                   >
-                    Add Family Member Now
+                    + Add Family Member Now
                   </button>
                 </div>
               ) : (
@@ -1454,18 +1374,18 @@ export const FamilySafetyPage: React.FC = () => {
                   {connectedMembers.map(member => (
                     <div
                       key={member.id}
-                      className="p-6 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 shadow-xl backdrop-blur-2xl space-y-4 relative overflow-hidden group hover:border-slate-700 transition-all duration-300"
+                      className="p-6 rounded-3xl bg-[#0B2A1E]/85 border border-[#D4AF37]/35 shadow-xl backdrop-blur-2xl space-y-4 relative overflow-hidden group hover:border-[#F4D06F]/60 transition-all duration-300"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white font-extrabold text-lg flex items-center justify-center shadow-lg">
-                            {member.member_name.charAt(0).toUpperCase()}
+                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#D4AF37] to-[#B8860B] text-[#071C14] font-serif font-black text-lg flex items-center justify-center shadow-lg">
+                            {(member.member_name || member.name || 'F').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <h4 className="text-base font-bold text-white group-hover:text-red-400 transition-colors">
-                              {member.member_name}
+                            <h4 className="text-base font-bold text-white group-hover:text-[#F4D06F] transition-colors">
+                              {member.member_name || member.name}
                             </h4>
-                            <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-800 text-slate-300 rounded-full">
+                            <span className="px-2.5 py-0.5 text-[10px] font-bold bg-[#103526] text-[#F4D06F] border border-[#D4AF37]/30 rounded-full">
                               {member.relationship}
                             </span>
                           </div>
@@ -1473,14 +1393,14 @@ export const FamilySafetyPage: React.FC = () => {
 
                         <button
                           onClick={() => handleRemoveMember(member.id)}
-                          className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
+                          className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
                           title="Remove Member Connection"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
 
-                      <div className="space-y-2 text-xs text-slate-400 border-t border-slate-800/80 pt-3">
+                      <div className="space-y-2 text-xs text-slate-300 border-t border-[#D4AF37]/20 pt-3">
                         <div className="flex items-center justify-between">
                           <span>Status:</span>
                           <span className="flex items-center gap-1.5 font-bold text-emerald-400">
@@ -1496,7 +1416,7 @@ export const FamilySafetyPage: React.FC = () => {
                         )}
                         <div className="flex items-center justify-between">
                           <span>Last Location Ping:</span>
-                          <span className="font-mono text-slate-300">Just Now</span>
+                          <span className="font-mono text-slate-300">{member.last_updated ? new Date(member.last_updated).toLocaleTimeString() : 'Just Now'}</span>
                         </div>
                       </div>
 
@@ -1506,13 +1426,13 @@ export const FamilySafetyPage: React.FC = () => {
                             setSelectedMember(member);
                             setActiveTab('map');
                           }}
-                          className="py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 border border-slate-700 transition-all"
+                          className="py-2.5 bg-[#103526] hover:bg-[#154632] text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 border border-[#D4AF37]/30 transition-all"
                         >
-                          <MapPin className="w-4 h-4 text-red-400" />
+                          <MapPin className="w-4 h-4 text-[#F4D06F]" />
                           <span>View on Map</span>
                         </button>
                         <a
-                          href={`tel:${member.member_phone || ''}`}
+                          href={`tel:${member.member_phone || member.phone || ''}`}
                           className="py-2.5 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 font-bold text-xs rounded-xl flex items-center justify-center gap-2 border border-emerald-800/50 transition-all"
                         >
                           <Phone className="w-4 h-4 text-emerald-400" />
