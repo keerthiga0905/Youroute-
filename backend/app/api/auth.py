@@ -716,14 +716,14 @@ def create_demo_session(request: Request, db: Session = Depends(get_db)):
     """
     Development endpoint for quick testing: creates or returns a verified demo session.
     """
-    demo_email = "keerthigamurali3116@gmail.com"
+    demo_email = "demo@routemap.ai"
     user = db.query(User).filter(User.email == demo_email).first()
     if not user:
         user = User(
             user_uuid=str(uuid.uuid4()),
             public_user_id="RM-DEMOUSER",
             email=demo_email,
-            full_name="Keerthiga M",
+            full_name="Demo Explorer",
             phone="+91 98765 43210",
             hashed_password=get_password_hash("DemoPass123!"),
             is_verified=True,

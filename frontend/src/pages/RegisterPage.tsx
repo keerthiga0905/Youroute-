@@ -71,8 +71,13 @@ export const RegisterPage: React.FC = () => {
       const detail = err.response?.data?.detail;
       if (typeof detail === 'string') {
         setError(detail);
+      } else if (Array.isArray(detail)) {
+        const errorMessages = detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ');
+        setError(errorMessages || 'Validation error. Please verify your inputs.');
+      } else if (!err.response) {
+        setError('Cannot reach RouteMap backend server. Please verify the backend is running on port 8000.');
       } else {
-        setError('Registration failed. Please check your inputs and try again.');
+        setError(err.response?.data?.message || err.message || 'Registration failed. Please check your inputs and try again.');
       }
     } finally {
       setLoading(false);
