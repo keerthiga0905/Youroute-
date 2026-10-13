@@ -126,11 +126,20 @@ export const FamilySafetyPage: React.FC = () => {
   const [sosCountdownSeconds, setSosCountdownSeconds] = useState<number>(5);
   const [sosTriggerMethod, setSosTriggerMethod] = useState<'BUTTON' | 'VOICE' | 'AUTOMATED_SAFETY_TRIGGER'>('BUTTON');
 
-  // Active Media Evidence Recording State
+  // Active Media Evidence Recording & Live Camera Broadcasting
   const [isRecordingEvidence, setIsRecordingEvidence] = useState<boolean>(false);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const mediaRecorderRef = useRef<any>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+
+  // Real-Time Live Visual Stream Feeds (received from family members or broadcasting)
+  const [sosLiveVisualStreams, setSosLiveVisualStreams] = useState<Record<number, { frame: string; user_name: string; timestamp: string }>>({});
+  const [activeEmergencyMedia, setActiveEmergencyMedia] = useState<Record<number, string>>({});
+  const [isLocalCameraBroadcasting, setIsLocalCameraBroadcasting] = useState<boolean>(false);
+  const [localEmergencyId, setLocalEmergencyId] = useState<number | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const frameBroadcastIntervalRef = useRef<any>(null);
 
   // Voice SOS Speech Recognition
   const [isListeningVoice, setIsListeningVoice] = useState<boolean>(false);
@@ -199,7 +208,7 @@ export const FamilySafetyPage: React.FC = () => {
 
   // Real-time WebSocket connection to backend
   useEffect(() => {
-    const token = localStorage.getItem('access_token') || '';
+    const token = localStorage.getItem('saferoute_token') || localStorage.getItem('access_token') || '';
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname || 'localhost';
     const wsUrl = `${protocol}//${host}:8000/api/family/ws?token=${token}`;
@@ -237,10 +246,38 @@ export const FamilySafetyPage: React.FC = () => {
               return [data.alert, ...prev];
             });
             playEmergencyAlarmSound();
+          } else if (data.type === 'SOS_CAMERA_FRAME') {
+            // Live visual feed frame packet received via WebSocket from family member
+            setSosLiveVisualStreams(prev => ({
+              ...prev,
+              [data.event_id]: {
+                frame: data.image || data.frame,
+                user_name: data.user_name || 'Family Member',
+                timestamp: data.timestamp || new Date().toISOString()
+              }
+            }));
+          } else if (data.type === 'SOS_CAMERA_STOP') {
+            setSosLiveVisualStreams(prev => {
+              const next = { ...prev };
+              delete next[data.event_id];
+              return next;
+            });
+          } else if (data.type === 'EMERGENCY_MEDIA_UPLOADED') {
+            if (data.media?.storage_url) {
+              setActiveEmergencyMedia(prev => ({
+                ...prev,
+                [data.event_id]: data.media.storage_url
+              }));
+            }
           } else if (data.type === 'EMERGENCY_ACKNOWLEDGED') {
             setEmergencies(prev => prev.map(e => e.id === data.event_id ? { ...e, status: 'FAMILY_ACKNOWLEDGED' } : e));
           } else if (data.type === 'EMERGENCY_RESOLVED') {
             setEmergencies(prev => prev.filter(e => e.id !== data.event_id));
+            setSosLiveVisualStreams(prev => {
+              const next = { ...prev };
+              delete next[data.event_id];
+              return next;
+            });
           } else if (data.type === 'FAMILY_MESH_UPDATED') {
             loadFamilyData();
           }
@@ -356,6 +393,12 @@ export const FamilySafetyPage: React.FC = () => {
     }).then(loadFamilyData);
   };
 
+  // Immediate SOS Trigger (Clicks or Holds)
+  const triggerSosImmediately = (method: 'BUTTON' | 'VOICE' | 'AUTOMATED_SAFETY_TRIGGER' = 'BUTTON') => {
+    setSosTriggerMethod(method);
+    executeEmergencyBroadcast(method);
+  };
+
   // 2-Second Hold Button SOS Handler
   const handleSosMouseDown = () => {
     setSosHoldProgress(0);
@@ -365,7 +408,7 @@ export const FamilySafetyPage: React.FC = () => {
       setSosHoldProgress(current);
       if (current >= 100) {
         clearInterval(holdTimerRef.current);
-        startEmergencyCountdown('BUTTON');
+        triggerSosImmediately('BUTTON');
       }
     }, 100);
   };
@@ -379,7 +422,7 @@ export const FamilySafetyPage: React.FC = () => {
     }
   };
 
-  // 5-Second False Activation Countdown
+  // 5-Second False Activation Countdown (if voice or automated triggered)
   const startEmergencyCountdown = (method: 'BUTTON' | 'VOICE' | 'AUTOMATED_SAFETY_TRIGGER') => {
     setSosTriggerMethod(method);
     setSosCountdownSeconds(5);
@@ -395,20 +438,23 @@ export const FamilySafetyPage: React.FC = () => {
         }, 1000);
       } else {
         setSosCountdownActive(false);
-        executeEmergencyBroadcast();
+        executeEmergencyBroadcast(sosTriggerMethod);
       }
     }
     return () => clearInterval(timer);
-  }, [sosCountdownActive, sosCountdownSeconds]);
+  }, [sosCountdownActive, sosCountdownSeconds, sosTriggerMethod]);
 
-  // Execute Actual SOS Broadcast, Play Alarm & Evidence Capture
-  const executeEmergencyBroadcast = async () => {
+  // Execute Actual SOS Broadcast, Play Alarm & Automatically Activate Camera
+  const executeEmergencyBroadcast = async (method: 'BUTTON' | 'VOICE' | 'AUTOMATED_SAFETY_TRIGGER' = sosTriggerMethod) => {
     playEmergencyAlarmSound();
 
     if (sosTestMode) {
-      alert("🧪 [SOS TEST MODE] Emergency SOS 2-second hold triggered successfully!\n\nSynthesizer alarm and local alert verified. No real emergency notifications were dispatched to family devices.");
+      alert("🧪 [SOS TEST MODE] Emergency SOS triggered successfully!\n\nSynthesizer alarm and local alert verified. No real emergency notifications were dispatched to family devices.");
       return;
     }
+
+    // Automatically turn on camera immediately upon clicking/triggering SOS
+    startSosCameraAndBroadcast();
 
     let lat = userLocation?.lat || 11.0168;
     let lng = userLocation?.lng || 76.9558;
@@ -428,11 +474,13 @@ export const FamilySafetyPage: React.FC = () => {
         latitude: lat,
         longitude: lng,
         accuracy: 10,
-        trigger_method: sosTriggerMethod,
+        trigger_method: method,
         battery_level: batteryLevel || undefined,
-        message: `🚨 Emergency SOS Triggered via ${sosTriggerMethod}!`
+        message: `🚨 Emergency SOS Triggered via ${method}!`
       });
 
+      setLocalEmergencyId(res.id);
+      beginFrameStreaming(res.id);
       startMediaEvidenceRecording(res.id);
       loadFamilyData();
     } catch (err: any) {
@@ -440,12 +488,122 @@ export const FamilySafetyPage: React.FC = () => {
     }
   };
 
-  // Record Camera & Microphone Evidence Video
-  const startMediaEvidenceRecording = async (eventId: number) => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  // Automatically activate camera immediately upon SOS trigger
+  const startSosCameraAndBroadcast = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.warn("Camera mediaDevices not supported in this browser.");
+      return;
+    }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+          audio: true
+        });
+      } catch (err) {
+        // Fallback to video-only if microphone blocked
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
+        });
+      }
+
+      localStreamRef.current = stream;
+      setIsLocalCameraBroadcasting(true);
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.play().catch(() => {});
+      }
+    } catch (permErr) {
+      console.warn("Camera auto-activation permission error:", permErr);
+    }
+  };
+
+  // Connect local video element whenever broadcasting state becomes true
+  useEffect(() => {
+    if (isLocalCameraBroadcasting && localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+      localVideoRef.current.play().catch(() => {});
+    }
+  }, [isLocalCameraBroadcasting]);
+
+  // Begin capturing frames and broadcasting them live to family members via WebSocket
+  const beginFrameStreaming = (eventId: number) => {
+    if (frameBroadcastIntervalRef.current) {
+      clearInterval(frameBroadcastIntervalRef.current);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 360;
+    canvas.height = 270;
+    const ctx = canvas.getContext('2d');
+
+    const currentUser = JSON.parse(localStorage.getItem('saferoute_user') || '{}');
+    const senderName = currentUser?.full_name || currentUser?.email?.split('@')[0] || 'Family Member';
+
+    const captureAndSend = () => {
+      const stream = localStreamRef.current;
+      const videoEl = localVideoRef.current;
+      if (!videoEl || !stream || !stream.active) return;
+
+      try {
+        ctx?.drawImage(videoEl, 0, 0, 360, 270);
+        const frameData = canvas.toDataURL('image/jpeg', 0.55);
+
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'SOS_CAMERA_FRAME',
+            event_id: eventId,
+            user_id: currentUser?.id,
+            user_name: senderName,
+            image: frameData,
+            timestamp: new Date().toISOString()
+          }));
+        }
+      } catch (err) {
+        console.warn("Frame capture notice:", err);
+      }
+    };
+
+    setTimeout(captureAndSend, 400);
+    // Broadcast live visual frames to family members every 350ms (~3 FPS)
+    frameBroadcastIntervalRef.current = setInterval(captureAndSend, 350);
+  };
+
+  const stopLocalCameraBroadcast = () => {
+    if (frameBroadcastIntervalRef.current) {
+      clearInterval(frameBroadcastIntervalRef.current);
+      frameBroadcastIntervalRef.current = null;
+    }
+
+    if (localEmergencyId && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'SOS_CAMERA_STOP',
+        event_id: localEmergencyId
+      }));
+    }
+
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+
+    setIsLocalCameraBroadcasting(false);
+    setLocalEmergencyId(null);
+  };
+
+  // Record Camera & Microphone Evidence Video
+  const startMediaEvidenceRecording = async (eventId: number) => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+
+    try {
       setIsRecordingEvidence(true);
       recordedChunksRef.current = [];
 
@@ -465,22 +623,27 @@ export const FamilySafetyPage: React.FC = () => {
         setRecordedVideoUrl(videoUrl);
 
         try {
-          await uploadEmergencyMedia(eventId, blob, "AUDIO_VIDEO");
+          const uploaded = await uploadEmergencyMedia(eventId, blob, "AUDIO_VIDEO");
+          if (uploaded?.storage_url) {
+            setActiveEmergencyMedia(prev => ({
+              ...prev,
+              [eventId]: uploaded.storage_url
+            }));
+          }
         } catch (uploadErr) {
           console.error("Media evidence upload notice:", uploadErr);
         }
-
-        stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorder.start();
+      // Record 12-second evidence clip while live stream continues uninterrupted
       setTimeout(() => {
         if (mediaRecorder.state !== 'inactive') {
           mediaRecorder.stop();
         }
-      }, 8000);
-    } catch (permErr) {
-      console.warn("Camera/Microphone permission notice:", permErr);
+      }, 12000);
+    } catch (err) {
+      console.warn("Evidence recording error:", err);
     }
   };
 
@@ -752,19 +915,27 @@ export const FamilySafetyPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Hold for SOS 3D Trigger Button (STRICTLY RED COLOR ALONE) */}
-              <div className="relative group select-none">
+              {/* Emergency SOS 3D Trigger Button with Auto-Camera Activation */}
+              <div className="relative group select-none flex items-center gap-2">
+                <button
+                  onClick={() => triggerSosImmediately('BUTTON')}
+                  className={`relative px-5 py-3 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white font-serif font-black rounded-2xl shadow-[0_0_35px_rgba(239,68,68,0.8)] hover:shadow-[0_0_45px_rgba(239,68,68,1)] border-2 ${sosTestMode ? 'border-amber-400' : 'border-red-400'} transition-all transform active:scale-95 flex items-center gap-2 text-xs sm:text-sm overflow-hidden animate-pulse`}
+                  title="Click to trigger Emergency SOS and automatically turn on live camera broadcast"
+                >
+                  <Camera className="w-4 h-4 text-white animate-pulse" />
+                  <span>{sosTestMode ? 'TEST SOS NOW' : 'EMERGENCY SOS NOW'}</span>
+                </button>
+
                 <button
                   onMouseDown={handleSosMouseDown}
                   onMouseUp={handleSosMouseUp}
                   onTouchStart={handleSosMouseDown}
                   onTouchEnd={handleSosMouseUp}
-                  className={`relative px-6 py-3 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white font-serif font-black rounded-2xl shadow-[0_0_35px_rgba(239,68,68,0.8)] hover:shadow-[0_0_45px_rgba(239,68,68,1)] border-2 ${sosTestMode ? 'border-amber-400' : 'border-red-400'} transition-all transform active:scale-95 flex items-center gap-2 text-xs sm:text-sm overflow-hidden animate-pulse`}
+                  className="relative px-3.5 py-3 bg-red-900/80 hover:bg-red-800 text-white font-serif font-bold rounded-2xl border border-red-500/50 shadow-md transition-all transform active:scale-95 flex items-center gap-1.5 text-xs overflow-hidden"
+                  title="Hold for 2 seconds to activate SOS"
                 >
-                  <AlertOctagon className="w-5 h-5 text-white" />
-                  <span>{sosTestMode ? 'HOLD 2S FOR TEST SOS' : 'HOLD 2S FOR EMERGENCY SOS'}</span>
-
-                  {/* Progress Overlay */}
+                  <Radio className="w-3.5 h-3.5 text-red-300" />
+                  <span>HOLD 2S</span>
                   {sosHoldProgress > 0 && (
                     <div
                       className="absolute inset-y-0 left-0 bg-white/40 transition-all duration-100 pointer-events-none"
@@ -820,47 +991,218 @@ export const FamilySafetyPage: React.FC = () => {
 
         {/* 🚨 Active Emergency SOS Banner (If any family member has triggered SOS) */}
         {emergencies.length > 0 && (
-          <div className="relative rounded-3xl bg-gradient-to-r from-red-950 via-rose-950 to-slate-950 p-6 border-2 border-red-500/80 shadow-[0_0_60px_rgba(239,68,68,0.5)] animate-pulse overflow-hidden">
+          <div className="relative rounded-3xl bg-gradient-to-r from-red-950 via-rose-950 to-slate-950 p-6 md:p-8 border-2 border-red-500 shadow-[0_0_70px_rgba(239,68,68,0.6)] overflow-hidden">
             <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-              <ShieldAlert className="w-64 h-64 text-red-500" />
+              <ShieldAlert className="w-80 h-80 text-red-500" />
             </div>
-            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-              <div className="space-y-2">
+
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              {/* Left Column: Emergency Alert Info & Controls */}
+              <div className="lg:col-span-6 space-y-5">
                 <div className="flex items-center gap-3">
-                  <span className="px-3 py-1 bg-red-600 text-white font-extrabold text-xs tracking-wider uppercase rounded-full animate-ping">
+                  <span className="px-3.5 py-1.5 bg-red-600 text-white font-extrabold text-xs tracking-wider uppercase rounded-full shadow-[0_0_15px_rgba(239,68,68,0.8)] animate-pulse flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                     🚨 EMERGENCY SOS ACTIVE
                   </span>
-                  <span className="text-xs text-red-300 font-mono">ID #{emergencies[0].id}</span>
+                  <span className="text-xs text-red-300 font-mono bg-red-950/60 px-2.5 py-1 rounded-lg border border-red-800/50">
+                    ID #{emergencies[0].id}
+                  </span>
                 </div>
-                <h2 className="text-2xl font-black text-white flex items-center gap-2">
-                  <span>{emergencies[0].user_name}</span>
-                  <span className="text-red-400">needs immediate assistance!</span>
-                </h2>
-                <p className="text-sm text-red-200/90 flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-red-400" />
-                  <span>Lat: {emergencies[0].latitude.toFixed(4)}, Lng: {emergencies[0].longitude.toFixed(4)}</span>
-                  <span className="text-red-400/60">•</span>
-                  <span>Method: <strong>{emergencies[0].trigger_method}</strong></span>
-                </p>
+
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-black text-white flex flex-wrap items-center gap-2">
+                    <span className="text-[#F4D06F]">{emergencies[0].user_name}</span>
+                    <span className="text-red-400">needs immediate assistance!</span>
+                  </h2>
+                  <p className="text-sm text-red-200/90 mt-2 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-red-400 shrink-0" />
+                    <span>Lat: {emergencies[0].latitude.toFixed(4)}, Lng: {emergencies[0].longitude.toFixed(4)}</span>
+                    <span className="text-red-400/60">•</span>
+                    <span>Trigger: <strong className="text-white">{emergencies[0].trigger_method}</strong></span>
+                    {emergencies[0].battery_level && (
+                      <>
+                        <span className="text-red-400/60">•</span>
+                        <span>Battery: <strong className="text-white">{emergencies[0].battery_level}%</strong></span>
+                      </>
+                    )}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-black/40 border border-red-500/30 flex items-center gap-3">
+                  <Camera className="w-5 h-5 text-red-400 shrink-0 animate-pulse" />
+                  <p className="text-xs text-red-200 leading-relaxed">
+                    Camera visual stream automatically engaged on {emergencies[0].user_name}'s device. Monitoring real-time visuals and mesh audio evidence.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <button
+                    onClick={() => handleAcknowledgeSOS(emergencies[0].id)}
+                    className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition-transform active:scale-95 flex items-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Acknowledge Signal</span>
+                  </button>
+                  <button
+                    onClick={() => handleResolveSOS(emergencies[0].id)}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition-transform active:scale-95 flex items-center gap-2"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Mark Safe / Resolve</span>
+                  </button>
+                  <a
+                    href="tel:112"
+                    className="px-4 py-2.5 bg-red-700 hover:bg-red-600 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center gap-1.5"
+                  >
+                    <Phone className="w-4 h-4" />
+                    <span>Call 112 (Emergency)</span>
+                  </a>
+                  <button
+                    onClick={() => {
+                      setSelectedSharedLocation({
+                        lat: emergencies[0].latitude,
+                        lng: emergencies[0].longitude,
+                        label: `${emergencies[0].user_name} SOS Location`
+                      });
+                      setActiveTab('map');
+                    }}
+                    className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-slate-700"
+                  >
+                    <Navigation className="w-4 h-4 text-cyan-400" />
+                    <span>Locate on Map</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={() => handleAcknowledgeSOS(emergencies[0].id)}
-                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-lg transition-transform active:scale-95 flex items-center gap-2"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Acknowledge Signal</span>
-                </button>
-                <button
-                  onClick={() => handleResolveSOS(emergencies[0].id)}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition-transform active:scale-95 flex items-center gap-2"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Mark All Safe</span>
-                </button>
+              {/* Right Column: 🔴 LIVE CAMERA VISUAL STREAM DISPLAY */}
+              <div className="lg:col-span-6">
+                {(() => {
+                  const alertId = emergencies[0].id;
+                  const liveFeed = sosLiveVisualStreams[alertId];
+                  const mediaUrl = activeEmergencyMedia[alertId] || emergencies[0].media_recordings?.[0]?.url || emergencies[0].media_records?.[0]?.url;
+
+                  if (liveFeed && liveFeed.frame) {
+                    return (
+                      <div className="relative rounded-3xl overflow-hidden border-2 border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.8)] bg-black">
+                        <img
+                          src={liveFeed.frame}
+                          alt={`${emergencies[0].user_name}'s Live Camera Feed`}
+                          className="w-full h-80 object-cover bg-black"
+                        />
+                        {/* Live Overlay Header */}
+                        <div className="absolute top-3 left-3 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-600/90 backdrop-blur-md text-white text-xs font-black shadow-lg">
+                          <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+                          <span>🔴 LIVE CAMERA VISUAL</span>
+                        </div>
+                        <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md text-red-300 text-[11px] font-mono border border-red-500/30">
+                          {new Date(liveFeed.timestamp).toLocaleTimeString()}
+                        </div>
+                        {/* Live Overlay Footer */}
+                        <div className="absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex items-center justify-between text-xs text-white">
+                          <div className="flex items-center gap-2">
+                            <Camera className="w-4 h-4 text-red-400 animate-pulse" />
+                            <span className="font-bold">{liveFeed.user_name || emergencies[0].user_name}'s Camera Feed</span>
+                          </div>
+                          <span className="text-[10px] text-emerald-400 font-mono tracking-wider font-bold">
+                            ENCRYPTED MESH RELAY
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (mediaUrl) {
+                    const fullMediaUrl = mediaUrl.startsWith('http') ? mediaUrl : `${window.location.origin}${mediaUrl}`;
+                    return (
+                      <div className="relative rounded-3xl overflow-hidden border-2 border-amber-500/80 shadow-2xl bg-black">
+                        <video
+                          src={fullMediaUrl}
+                          controls
+                          autoPlay
+                          playsInline
+                          className="w-full h-80 object-contain bg-black"
+                        />
+                        <div className="absolute top-3 left-3 px-3 py-1.5 rounded-full bg-amber-500/90 backdrop-blur-md text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg">
+                          <Video className="w-3.5 h-3.5" />
+                          <span>📹 Recorded Video Evidence</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="h-80 rounded-3xl bg-black/60 border-2 border-red-500/40 border-dashed flex flex-col items-center justify-center p-6 text-center space-y-4">
+                      <div className="relative">
+                        <div className="p-4 rounded-full bg-red-600/20 border border-red-500/40">
+                          <Camera className="w-12 h-12 text-red-400 animate-pulse" />
+                        </div>
+                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 animate-ping" />
+                      </div>
+                      <div>
+                        <p className="text-base font-bold text-white">Connecting to {emergencies[0].user_name}'s Camera Stream...</p>
+                        <p className="text-xs text-red-300/80 max-w-sm mt-1">
+                          Camera automatically activates on the sender's device. Real-time visual frames will stream here immediately as they arrive.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1 bg-red-950/80 rounded-full border border-red-800 text-[11px] text-red-300 font-mono">
+                        <Radar className="w-3.5 h-3.5 text-red-400 animate-spin" />
+                        <span>Awaiting camera frame packet</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 📹 Local SOS Camera Live Broadcast Floating Card (Visible to Sender) */}
+        {isLocalCameraBroadcasting && (
+          <div className="fixed bottom-6 right-6 z-[9999] max-w-sm w-full bg-gradient-to-b from-red-950/95 to-slate-950/95 border-2 border-red-500 rounded-3xl p-4 shadow-[0_0_50px_rgba(239,68,68,0.8)] backdrop-blur-2xl animate-fadeIn space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
+                <span className="text-xs font-black text-white uppercase tracking-wider">
+                  🔴 LIVE CAMERA BROADCASTING
+                </span>
+              </div>
+              <span className="text-[10px] bg-red-600/80 px-2.5 py-0.5 rounded-full text-white font-mono font-bold">
+                TO FAMILY MESH
+              </span>
+            </div>
+
+            {/* Local Video Stream Preview */}
+            <div className="relative rounded-2xl overflow-hidden bg-black border border-red-500/50 aspect-video">
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover bg-black"
+                style={{ transform: 'scaleX(-1)' }}
+              />
+              <div className="absolute top-2 left-2 px-2.5 py-1 rounded-md bg-black/70 backdrop-blur-md text-[10px] text-red-300 font-mono flex items-center gap-1.5 border border-red-500/30">
+                <Camera className="w-3 h-3 text-red-400 animate-pulse" />
+                <span>Your Camera is Live</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-red-200/90 leading-relaxed">
+              Your real-time camera visual is displaying on your family members' screens and audio/video evidence is being securely saved.
+            </p>
+
+            <button
+              onClick={() => {
+                if (localEmergencyId) {
+                  handleResolveSOS(localEmergencyId);
+                }
+                stopLocalCameraBroadcast();
+              }}
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>I Am Safe • End SOS & Stop Camera</span>
+            </button>
           </div>
         )}
 

@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
+import json
 import secrets
 import hashlib
 import os
 from typing import List, Optional, Dict, Any
 
-from app.core.database import get_db
+from app.core.database import get_db, SessionLocal
 from app.core.security import decode_access_token
 from app.api.auth import get_current_user
 from app.database.models import (
@@ -85,23 +86,40 @@ class ConnectionManager:
                 self.user_connections[user_id].remove(websocket)
             if not self.user_connections[user_id]:
                 del self.user_connections[user_id]
+        else:
+            for uid, sockets in list(self.user_connections.items()):
+                if websocket in sockets:
+                    sockets.remove(websocket)
+                    if not sockets:
+                        del self.user_connections[uid]
 
-    async def broadcast_to_family(self, sender_id: int, message: dict, db: Session, include_sender: bool = True):
+    async def broadcast_to_family(self, sender_id: Optional[int], message: dict, db: Optional[Session] = None, include_sender: bool = True, sender_ws: Optional[WebSocket] = None):
         try:
-            target_ids = get_family_mesh_user_ids(sender_id, db)
-            if not include_sender and sender_id in target_ids:
-                target_ids = target_ids - {sender_id}
+            target_ids = set()
+            if sender_id and db:
+                target_ids = get_family_mesh_user_ids(sender_id, db)
+                if not include_sender and sender_id in target_ids:
+                    target_ids = target_ids - {sender_id}
 
+            sent_sockets = set()
+            # Send to family mesh members
             for uid in target_ids:
                 sockets = self.user_connections.get(uid, [])
                 for ws in list(sockets):
+                    if not include_sender and ws == sender_ws:
+                        continue
                     try:
                         await ws.send_json(message)
+                        sent_sockets.add(ws)
                     except Exception:
                         self.disconnect(ws, uid)
 
-            # Broadcast to generic active listeners
+            # Broadcast to generic active listeners (cross-tab / demo mode listeners)
             for ws in list(self.active_connections):
+                if ws in sent_sockets:
+                    continue
+                if not include_sender and ws == sender_ws:
+                    continue
                 try:
                     await ws.send_json(message)
                 except Exception:
@@ -123,23 +141,57 @@ manager = ConnectionManager()
 async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = None):
     user_id = None
     query_token = websocket.query_params.get("token") or token
-    if query_token:
-        try:
-            payload = decode_access_token(query_token)
-            if payload and "sub" in payload:
-                user_id = int(payload["sub"])
-        except Exception:
-            pass
-
-    await manager.connect(websocket, user_id)
+    db = SessionLocal()
     try:
-        while True:
-            data = await websocket.receive_text()
-            await websocket.send_text(f"ACK: {data}")
-    except WebSocketDisconnect:
-        manager.disconnect(websocket, user_id)
-    except Exception:
-        manager.disconnect(websocket, user_id)
+        if query_token:
+            try:
+                payload = decode_access_token(query_token)
+                if payload and "sub" in payload:
+                    sub_str = str(payload["sub"])
+                    u = db.query(User).filter((User.user_uuid == sub_str) | (User.email == sub_str)).first()
+                    if u:
+                        user_id = u.id
+                    elif sub_str.isdigit():
+                        user_id = int(sub_str)
+            except Exception as e:
+                print("WS Token Auth Notice:", e)
+
+        await manager.connect(websocket, user_id)
+        try:
+            while True:
+                data_text = await websocket.receive_text()
+                try:
+                    data = json.loads(data_text)
+                    msg_type = data.get("type")
+                    if msg_type in ["SOS_CAMERA_FRAME", "SOS_CAMERA_STOP"]:
+                        # Relay live camera frames / stop signal to connected family members in real-time
+                        if user_id and not data.get("user_id"):
+                            data["user_id"] = user_id
+                        await manager.broadcast_to_family(
+                            user_id,
+                            data,
+                            db,
+                            include_sender=False,
+                            sender_ws=websocket
+                        )
+                    elif msg_type == "LOCATION_UPDATE":
+                        await manager.broadcast_to_family(
+                            user_id,
+                            data,
+                            db,
+                            include_sender=False,
+                            sender_ws=websocket
+                        )
+                    else:
+                        await websocket.send_text(f"ACK: {msg_type or 'RECEIVED'}")
+                except json.JSONDecodeError:
+                    await websocket.send_text(f"ACK: {data_text}")
+        except WebSocketDisconnect:
+            manager.disconnect(websocket, user_id)
+        except Exception:
+            manager.disconnect(websocket, user_id)
+    finally:
+        db.close()
 
 
 # 1. Option 1: Email Invitation
@@ -896,9 +948,10 @@ async def upload_emergency_media(
     if not alert:
         raise HTTPException(status_code=404, detail="Emergency event not found.")
 
-    os.makedirs("scratch/uploads", exist_ok=True)
+    upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "scratch", "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
     filename = f"emergency_{event_id}_{secrets.token_hex(6)}_{file.filename}"
-    filepath = os.path.join("scratch/uploads", filename)
+    filepath = os.path.join(upload_dir, filename)
 
     contents = await file.read()
     with open(filepath, "wb") as f:
@@ -915,6 +968,22 @@ async def upload_emergency_media(
     db.add(media_record)
     db.commit()
     db.refresh(media_record)
+
+    await manager.broadcast_to_family(
+        current_user.id,
+        {
+            "type": "EMERGENCY_MEDIA_UPLOADED",
+            "event_id": event_id,
+            "media": {
+                "id": media_record.id,
+                "event_id": event_id,
+                "media_type": media_type,
+                "storage_url": media_record.storage_url
+            }
+        },
+        db,
+        include_sender=True
+    )
 
     return {
         "id": media_record.id,

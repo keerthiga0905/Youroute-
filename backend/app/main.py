@@ -34,6 +34,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Setup evidence upload directory and static mounting
+import os
+from fastapi.staticfiles import StaticFiles
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scratch", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/scratch/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+
 # Register API Routers
 app.include_router(geocode.router, prefix=settings.API_V1_STR)
 app.include_router(routes.router, prefix=settings.API_V1_STR)

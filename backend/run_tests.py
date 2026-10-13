@@ -36,4 +36,9 @@ if __name__ == "__main__":
     test_auth_system.test_15_existing_routemap_compatibility()
     print("[OK] All 15 Authentication Test Scenarios Passed!")
 
-    print("\nALL BACKEND & AUTHENTICATION TESTS PASSED SUCCESSFULLY!")
+    print("\nRunning Safely & Mesh Camera SOS & Real-Time Network Tests...")
+    from tests.test_safely_mesh import test_full_safely_mesh_lifecycle
+    test_full_safely_mesh_lifecycle()
+    print("[OK] Safely & Mesh Camera SOS & Real-Time Network Tests Passed!")
+
+    print("\nALL BACKEND, AUTHENTICATION & SOS CAMERA TESTS PASSED SUCCESSFULLY!")

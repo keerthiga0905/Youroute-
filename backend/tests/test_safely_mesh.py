@@ -1,9 +1,22 @@
-import pytest
+import sys
+import os
+import uuid
+
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 from fastapi.testclient import TestClient
 from app.main import app
 from app.core.database import SessionLocal, Base, engine
 from app.database import models
-import uuid
+from app.database.models import User
+from app.services.email_service import email_service
+
+# Mock email service for unit testing
+email_service.send_verification_otp = lambda recipient_email, recipient_name, otp, expire_minutes=5: {
+    "delivered": True, "status": "sent", "message": f"Code {otp} sent to {recipient_email}"
+}
 
 client = TestClient(app)
 
@@ -28,9 +41,31 @@ def test_full_safely_mesh_lifecycle():
 
     for u in users:
         # Register
-        reg_res = client.post("/api/auth/register", json=u)
+        reg_res = client.post("/api/auth/register", json={
+            "email": u["email"],
+            "password": u["password"],
+            "confirm_password": u["password"],
+            "full_name": u["full_name"],
+            "agree_to_terms": True
+        })
         assert reg_res.status_code in [200, 201], f"Failed to register {u['email']}: {reg_res.text}"
-        tokens[u['email']] = reg_res.json()["access_token"]
+
+        # Mark user verified
+        db = SessionLocal()
+        try:
+            db_user = db.query(User).filter(User.email == u["email"]).first()
+            db_user.is_verified = True
+            db.commit()
+        finally:
+            db.close()
+
+        # Login
+        login_res = client.post("/api/auth/login", json={
+            "email": u["email"],
+            "password": u["password"]
+        })
+        assert login_res.status_code == 200, f"Failed to login {u['email']}: {login_res.text}"
+        tokens[u['email']] = login_res.json()["access_token"]
 
     father_token = tokens[father_email]
     mother_token = tokens[mother_email]
@@ -157,7 +192,41 @@ def test_full_safely_mesh_lifecycle():
     assert ack_res.status_code == 200
     assert ack_res.json()["status"] == "FAMILY_ACKNOWLEDGED"
 
-    # 10. Test Emergency Resolution
+    # 10. Test Emergency Evidence Media Upload & Static Serving
+    import io
+    import json
+    dummy_video_bytes = b"dummy_webm_binary_content_evidence"
+    files = {"file": ("test_evidence.webm", io.BytesIO(dummy_video_bytes), "video/webm")}
+    upload_res = client.post(
+        f"/api/family/emergency/{event_id}/media",
+        files=files,
+        data={"media_type": "AUDIO_VIDEO"},
+        headers=son_headers
+    )
+    assert upload_res.status_code == 200, f"Upload media failed: {upload_res.text}"
+    media_data = upload_res.json()
+    assert "storage_url" in media_data
+    storage_url = media_data["storage_url"]
+    assert storage_url.startswith("/scratch/uploads/")
+
+    # Verify static file serves the uploaded content
+    static_res = client.get(storage_url)
+    assert static_res.status_code == 200
+    assert static_res.content == dummy_video_bytes
+
+    # 11. Test Real-Time WebSocket Connection & SOS Camera Frame Processing
+    with client.websocket_connect(f"/api/family/ws?token={father_token}") as father_ws:
+        # Send an SOS camera visual frame packet
+        test_frame = {
+            "type": "SOS_CAMERA_FRAME",
+            "event_id": event_id,
+            "user_name": "Father Robert",
+            "image": "data:image/jpeg;base64,dummy_live_camera_frame_data",
+            "timestamp": "2026-10-13T12:00:00Z"
+        }
+        father_ws.send_text(json.dumps(test_frame))
+
+    # 12. Test Emergency Resolution
     resolve_res = client.post(f"/api/family/emergency/{event_id}/resolve", headers=son_headers)
     assert resolve_res.status_code == 200
     assert resolve_res.json()["status"] == "EMERGENCY_RESOLVED"
