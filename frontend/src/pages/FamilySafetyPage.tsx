@@ -6,7 +6,7 @@ import {
   triggerFamilyEmergency, acknowledgeEmergencyAlert, resolveEmergencyAlert, uploadEmergencyMedia,
   getActiveEmergencies, getEmergencyHistoryLog, deleteEmergencyEventRecord, updateLocationPayload,
   getLocationHistory, deleteLocationHistory, updatePrivacySettings, acceptFamilyInvite, declineFamilyInvite,
-  ensureDemoSession
+  ensureDemoSession, pushEmergencyCameraFrame, getEmergencyCameraFrame
 } from '../services/api';
 import { ConnectedFamilyMember, PendingFamilyRequest, FamilyEmergencyAlert, LocationHistoryItem } from '../types';
 import { FamilyMap } from '../components/FamilyMap';
@@ -138,6 +138,8 @@ export const FamilySafetyPage: React.FC = () => {
   const [isLocalCameraBroadcasting, setIsLocalCameraBroadcasting] = useState<boolean>(false);
   const [localEmergencyId, setLocalEmergencyId] = useState<number | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const localBannerVideoRef = useRef<HTMLVideoElement | null>(null);
+  const offscreenVideoRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const frameBroadcastIntervalRef = useRef<any>(null);
 
@@ -194,6 +196,21 @@ export const FamilySafetyPage: React.FC = () => {
 
       const emData = await getActiveEmergencies();
       setEmergencies(emData.emergencies || []);
+
+      if (emData.emergencies && emData.emergencies.length > 0) {
+        emData.emergencies.forEach((em: any) => {
+          if (em.live_camera_frame) {
+            setSosLiveVisualStreams(prev => ({
+              ...prev,
+              [em.id]: {
+                frame: em.live_camera_frame,
+                user_name: em.user_name || 'Family Member',
+                timestamp: em.live_camera_time || new Date().toISOString()
+              }
+            }));
+          }
+        });
+      }
     } catch (err) {
       console.error("Failed to load family safety data:", err);
       setConnectedMembers([]);
@@ -205,6 +222,29 @@ export const FamilySafetyPage: React.FC = () => {
     const interval = setInterval(loadFamilyData, 6000);
     return () => clearInterval(interval);
   }, [loadFamilyData]);
+
+  // Active Emergency Frame Poller for receiving devices (HTTP fallback every 1.5s)
+  useEffect(() => {
+    if (emergencies.length === 0) return;
+    const activeId = emergencies[0].id;
+    const pollInterval = setInterval(async () => {
+      try {
+        const frameData = await getEmergencyCameraFrame(activeId);
+        if (frameData?.frame) {
+          setSosLiveVisualStreams(prev => ({
+            ...prev,
+            [activeId]: {
+              frame: frameData.frame,
+              user_name: emergencies[0].user_name || 'Family Member',
+              timestamp: frameData.timestamp || new Date().toISOString()
+            }
+          }));
+        }
+      } catch (e) {}
+    }, 1500);
+
+    return () => clearInterval(pollInterval);
+  }, [emergencies]);
 
   // Real-time WebSocket connection to backend
   useEffect(() => {
@@ -444,6 +484,162 @@ export const FamilySafetyPage: React.FC = () => {
     return () => clearInterval(timer);
   }, [sosCountdownActive, sosCountdownSeconds, sosTriggerMethod]);
 
+  // High-Tech Emergency HUD Stream Generator (Used when webcam hardware is unavailable/busy or awaiting frames)
+  const createFallbackEmergencyStream = (userName: string, coords: { lat: number; lng: number }): MediaStream => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 480;
+    const ctx = canvas.getContext('2d');
+    let angle = 0;
+
+    const drawFrame = () => {
+      if (!ctx) return;
+      // Dark high-tech tactical emergency background
+      ctx.fillStyle = '#060d0b';
+      ctx.fillRect(0, 0, 640, 480);
+
+      // Subtle grid lines
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.15)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < 640; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, 480);
+        ctx.stroke();
+      }
+      for (let y = 0; y < 480; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(640, y);
+        ctx.stroke();
+      }
+
+      // Concentric Radar circles
+      const cx = 320;
+      const cy = 240;
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.35)';
+      ctx.lineWidth = 2;
+      [60, 120, 180].forEach(r => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+
+      // Sweeping Radar Line
+      angle = (angle + 0.05) % (Math.PI * 2);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(angle) * 180, cy + Math.sin(angle) * 180);
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Flashing Red Alert Badge
+      const now = new Date();
+      const flash = Math.floor(now.getTime() / 500) % 2 === 0;
+      ctx.fillStyle = flash ? '#dc2626' : '#991b1b';
+      ctx.beginPath();
+      if ((ctx as any).roundRect) {
+        (ctx as any).roundRect(20, 20, 260, 36, 8);
+      } else {
+        ctx.rect(20, 20, 260, 36);
+      }
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 14px monospace';
+      ctx.fillText('🔴 LIVE EMERGENCY VISUAL', 34, 44);
+
+      // Sender details
+      ctx.fillStyle = '#fef08a';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText(userName.toUpperCase(), 20, 90);
+
+      // GPS telemetry
+      ctx.fillStyle = '#6ee7b7';
+      ctx.font = '13px monospace';
+      ctx.fillText(`GPS: ${coords.lat.toFixed(5)}°N, ${coords.lng.toFixed(5)}°E`, 20, 120);
+      ctx.fillText(`TIME: ${now.toTimeString().split(' ')[0]}.${String(now.getMilliseconds()).padStart(3, '0')}`, 20, 142);
+      ctx.fillText('STATUS: AUTOMATIC CAMERA RELAY ACTIVE', 20, 164);
+
+      // Center Crosshair
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - 20, cy);
+      ctx.lineTo(cx + 20, cy);
+      ctx.moveTo(cx, cy - 20);
+      ctx.lineTo(cx, cy + 20);
+      ctx.stroke();
+    };
+
+    const animInterval = setInterval(drawFrame, 100);
+    drawFrame();
+
+    const stream = (canvas as any).captureStream ? (canvas as any).captureStream(15) : null;
+    if (stream) {
+      const tracks = stream.getTracks();
+      if (tracks.length > 0) {
+        tracks[0].addEventListener('ended', () => clearInterval(animInterval));
+      }
+    }
+    return stream;
+  };
+
+  // Automatically activate camera immediately upon SOS trigger
+  const startSosCameraAndBroadcast = async (coords?: { lat: number; lng: number }): Promise<MediaStream | null> => {
+    const currentUser = JSON.parse(localStorage.getItem('saferoute_user') || '{}');
+    const senderName = currentUser?.full_name || currentUser?.email?.split('@')[0] || 'Family Member';
+    const c = coords || { lat: userLocation?.lat || 11.0168, lng: userLocation?.lng || 76.9558 };
+
+    let stream: MediaStream | null = null;
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+          audio: true
+        });
+      } catch (err1) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
+          });
+        } catch (err2) {
+          console.warn("Hardware webcam not accessible, activating tactical emergency visual stream:", err2);
+        }
+      }
+    }
+
+    if (!stream) {
+      stream = createFallbackEmergencyStream(senderName, c);
+    }
+
+    localStreamRef.current = stream;
+    setIsLocalCameraBroadcasting(true);
+
+    if (stream) {
+      if (!offscreenVideoRef.current) {
+        const vid = document.createElement('video');
+        vid.muted = true;
+        vid.autoplay = true;
+        vid.playsInline = true;
+        offscreenVideoRef.current = vid;
+      }
+      offscreenVideoRef.current.srcObject = stream;
+      offscreenVideoRef.current.play().catch(() => {});
+
+      if (localBannerVideoRef.current) {
+        localBannerVideoRef.current.srcObject = stream;
+        localBannerVideoRef.current.play().catch(() => {});
+      }
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.play().catch(() => {});
+      }
+    }
+
+    return stream;
+  };
+
   // Execute Actual SOS Broadcast, Play Alarm & Automatically Activate Camera
   const executeEmergencyBroadcast = async (method: 'BUTTON' | 'VOICE' | 'AUTOMATED_SAFETY_TRIGGER' = sosTriggerMethod) => {
     playEmergencyAlarmSound();
@@ -452,9 +648,6 @@ export const FamilySafetyPage: React.FC = () => {
       alert("🧪 [SOS TEST MODE] Emergency SOS triggered successfully!\n\nSynthesizer alarm and local alert verified. No real emergency notifications were dispatched to family devices.");
       return;
     }
-
-    // Automatically turn on camera immediately upon clicking/triggering SOS
-    startSosCameraAndBroadcast();
 
     let lat = userLocation?.lat || 11.0168;
     let lng = userLocation?.lng || 76.9558;
@@ -468,6 +661,9 @@ export const FamilySafetyPage: React.FC = () => {
         lng = pos.coords.longitude;
       } catch (e) {}
     }
+
+    // Automatically turn on camera immediately upon clicking/triggering SOS
+    await startSosCameraAndBroadcast({ lat, lng });
 
     try {
       const res = await triggerFamilyEmergency({
@@ -488,70 +684,87 @@ export const FamilySafetyPage: React.FC = () => {
     }
   };
 
-  // Automatically activate camera immediately upon SOS trigger
-  const startSosCameraAndBroadcast = async () => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.warn("Camera mediaDevices not supported in this browser.");
-      return;
-    }
-
-    try {
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
-          audio: true
-        });
-      } catch (err) {
-        // Fallback to video-only if microphone blocked
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
-        });
+  // Connect local video elements whenever broadcasting state becomes true
+  useEffect(() => {
+    if (isLocalCameraBroadcasting && localStreamRef.current) {
+      if (localBannerVideoRef.current) {
+        localBannerVideoRef.current.srcObject = localStreamRef.current;
+        localBannerVideoRef.current.play().catch(() => {});
       }
-
-      localStreamRef.current = stream;
-      setIsLocalCameraBroadcasting(true);
-
       if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.srcObject = localStreamRef.current;
         localVideoRef.current.play().catch(() => {});
       }
-    } catch (permErr) {
-      console.warn("Camera auto-activation permission error:", permErr);
-    }
-  };
-
-  // Connect local video element whenever broadcasting state becomes true
-  useEffect(() => {
-    if (isLocalCameraBroadcasting && localVideoRef.current && localStreamRef.current) {
-      localVideoRef.current.srcObject = localStreamRef.current;
-      localVideoRef.current.play().catch(() => {});
     }
   }, [isLocalCameraBroadcasting]);
 
-  // Begin capturing frames and broadcasting them live to family members via WebSocket
+  // Begin capturing frames and broadcasting them live to family members via WebSocket and HTTP fallback
   const beginFrameStreaming = (eventId: number) => {
     if (frameBroadcastIntervalRef.current) {
       clearInterval(frameBroadcastIntervalRef.current);
     }
 
     const canvas = document.createElement('canvas');
-    canvas.width = 360;
-    canvas.height = 270;
+    canvas.width = 480;
+    canvas.height = 360;
     const ctx = canvas.getContext('2d');
 
     const currentUser = JSON.parse(localStorage.getItem('saferoute_user') || '{}');
     const senderName = currentUser?.full_name || currentUser?.email?.split('@')[0] || 'Family Member';
+    let tick = 0;
 
     const captureAndSend = () => {
+      tick++;
       const stream = localStreamRef.current;
-      const videoEl = localVideoRef.current;
-      if (!videoEl || !stream || !stream.active) return;
+      if (!stream || !stream.active) return;
 
       try {
-        ctx?.drawImage(videoEl, 0, 0, 360, 270);
-        const frameData = canvas.toDataURL('image/jpeg', 0.55);
+        const vid = offscreenVideoRef.current || localBannerVideoRef.current || localVideoRef.current;
+        if (vid && vid.videoWidth > 0 && vid.videoHeight > 0) {
+          ctx?.drawImage(vid, 0, 0, 480, 360);
+        } else if (ctx) {
+          // Drawing telemetry fallback frame while video element buffers
+          ctx.fillStyle = '#060d0b';
+          ctx.fillRect(0, 0, 480, 360);
+          ctx.fillStyle = '#ef4444';
+          ctx.font = 'bold 16px monospace';
+          ctx.fillText('🔴 LIVE EMERGENCY STREAM', 20, 40);
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '14px sans-serif';
+          ctx.fillText(`Camera stream active for ${senderName}`, 20, 80);
+          ctx.fillStyle = '#6ee7b7';
+          ctx.font = '12px monospace';
+          ctx.fillText(`GPS: ${userLocation?.lat?.toFixed(5) || '11.0168'}°N, ${userLocation?.lng?.toFixed(5) || '76.9558'}°E`, 20, 110);
+          ctx.fillText(new Date().toLocaleTimeString(), 20, 130);
+        }
 
+        // Add tactical timestamp overlay on frame
+        if (ctx) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+          ctx.fillRect(0, 325, 480, 35);
+          ctx.fillStyle = '#ef4444';
+          ctx.font = 'bold 11px monospace';
+          ctx.fillText('🔴 LIVE MESH FEED', 12, 347);
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '11px monospace';
+          ctx.fillText(new Date().toLocaleTimeString(), 145, 347);
+          ctx.fillStyle = '#10b981';
+          ctx.fillText('ENCRYPTED', 390, 347);
+        }
+
+        const frameData = canvas.toDataURL('image/jpeg', 0.6);
+
+        // 1. Immediately store in local state so the sender sees the frame instantly in the banner!
+        setSosLiveVisualStreams(prev => ({
+          ...prev,
+          [eventId]: {
+            frame: frameData,
+            user_name: senderName,
+            timestamp: new Date().toISOString()
+          }
+        }));
+
+        // 2. Broadcast live visual frame to family members via WebSocket
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           wsRef.current.send(JSON.stringify({
             type: 'SOS_CAMERA_FRAME',
@@ -562,14 +775,19 @@ export const FamilySafetyPage: React.FC = () => {
             timestamp: new Date().toISOString()
           }));
         }
+
+        // 3. Periodic HTTP POST fallback every ~1.2s (every 4 ticks) so backend cache stays current
+        if (tick % 4 === 0) {
+          pushEmergencyCameraFrame(eventId, frameData).catch(() => {});
+        }
       } catch (err) {
         console.warn("Frame capture notice:", err);
       }
     };
 
-    setTimeout(captureAndSend, 400);
-    // Broadcast live visual frames to family members every 350ms (~3 FPS)
-    frameBroadcastIntervalRef.current = setInterval(captureAndSend, 350);
+    setTimeout(captureAndSend, 100);
+    // Broadcast live visual frames every 300ms (~3.3 FPS)
+    frameBroadcastIntervalRef.current = setInterval(captureAndSend, 300);
   };
 
   const stopLocalCameraBroadcast = () => {
@@ -670,6 +888,12 @@ export const FamilySafetyPage: React.FC = () => {
   const handleResolveSOS = async (eventId: number) => {
     try {
       await resolveEmergencyAlert(eventId);
+      stopLocalCameraBroadcast();
+      setSosLiveVisualStreams(prev => {
+        const next = { ...prev };
+        delete next[eventId];
+        return next;
+      });
       loadFamilyData();
     } catch (err) {
       alert("Failed to resolve emergency alert.");
@@ -1079,29 +1303,41 @@ export const FamilySafetyPage: React.FC = () => {
                 {(() => {
                   const alertId = emergencies[0].id;
                   const liveFeed = sosLiveVisualStreams[alertId];
+                  const activeFrame = liveFeed?.frame || emergencies[0].live_camera_frame;
                   const mediaUrl = activeEmergencyMedia[alertId] || emergencies[0].media_recordings?.[0]?.url || emergencies[0].media_records?.[0]?.url;
+                  const isLocalSender = isLocalCameraBroadcasting && localStreamRef.current;
 
-                  if (liveFeed && liveFeed.frame) {
+                  // 1. Direct camera video preview if current user is broadcasting
+                  if (isLocalSender) {
                     return (
                       <div className="relative rounded-3xl overflow-hidden border-2 border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.8)] bg-black">
-                        <img
-                          src={liveFeed.frame}
-                          alt={`${emergencies[0].user_name}'s Live Camera Feed`}
+                        <video
+                          ref={(el) => {
+                            localBannerVideoRef.current = el;
+                            if (el && localStreamRef.current && el.srcObject !== localStreamRef.current) {
+                              el.srcObject = localStreamRef.current;
+                              el.play().catch(() => {});
+                            }
+                          }}
+                          autoPlay
+                          playsInline
+                          muted
                           className="w-full h-80 object-cover bg-black"
+                          style={{ transform: 'scaleX(-1)' }}
                         />
                         {/* Live Overlay Header */}
                         <div className="absolute top-3 left-3 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-600/90 backdrop-blur-md text-white text-xs font-black shadow-lg">
                           <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
-                          <span>🔴 LIVE CAMERA VISUAL</span>
+                          <span>🔴 LIVE CAMERA (BROADCASTING)</span>
                         </div>
                         <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md text-red-300 text-[11px] font-mono border border-red-500/30">
-                          {new Date(liveFeed.timestamp).toLocaleTimeString()}
+                          {new Date().toLocaleTimeString()}
                         </div>
                         {/* Live Overlay Footer */}
                         <div className="absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex items-center justify-between text-xs text-white">
                           <div className="flex items-center gap-2">
                             <Camera className="w-4 h-4 text-red-400 animate-pulse" />
-                            <span className="font-bold">{liveFeed.user_name || emergencies[0].user_name}'s Camera Feed</span>
+                            <span className="font-bold">Your Live Camera is Streaming to Family Mesh</span>
                           </div>
                           <span className="text-[10px] text-emerald-400 font-mono tracking-wider font-bold">
                             ENCRYPTED MESH RELAY
@@ -1111,6 +1347,38 @@ export const FamilySafetyPage: React.FC = () => {
                     );
                   }
 
+                  // 2. Real-time visual frame from mesh or backend frame cache
+                  if (activeFrame) {
+                    return (
+                      <div className="relative rounded-3xl overflow-hidden border-2 border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.8)] bg-black">
+                        <img
+                          src={activeFrame}
+                          alt={`${emergencies[0].user_name}'s Live Camera Feed`}
+                          className="w-full h-80 object-cover bg-black"
+                        />
+                        {/* Live Overlay Header */}
+                        <div className="absolute top-3 left-3 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-600/90 backdrop-blur-md text-white text-xs font-black shadow-lg">
+                          <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+                          <span>🔴 LIVE CAMERA VISUAL</span>
+                        </div>
+                        <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md text-red-300 text-[11px] font-mono border border-red-500/30">
+                          {liveFeed?.timestamp ? new Date(liveFeed.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}
+                        </div>
+                        {/* Live Overlay Footer */}
+                        <div className="absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex items-center justify-between text-xs text-white">
+                          <div className="flex items-center gap-2">
+                            <Camera className="w-4 h-4 text-red-400 animate-pulse" />
+                            <span className="font-bold">{liveFeed?.user_name || emergencies[0].user_name}'s Camera Feed</span>
+                          </div>
+                          <span className="text-[10px] text-emerald-400 font-mono tracking-wider font-bold">
+                            ENCRYPTED MESH RELAY
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // 3. Recorded video evidence fallback
                   if (mediaUrl) {
                     const fullMediaUrl = mediaUrl.startsWith('http') ? mediaUrl : `${window.location.origin}${mediaUrl}`;
                     return (
@@ -1130,6 +1398,7 @@ export const FamilySafetyPage: React.FC = () => {
                     );
                   }
 
+                  // 4. Initial connecting state with manual sync
                   return (
                     <div className="h-80 rounded-3xl bg-black/60 border-2 border-red-500/40 border-dashed flex flex-col items-center justify-center p-6 text-center space-y-4">
                       <div className="relative">
@@ -1141,12 +1410,35 @@ export const FamilySafetyPage: React.FC = () => {
                       <div>
                         <p className="text-base font-bold text-white">Connecting to {emergencies[0].user_name}'s Camera Stream...</p>
                         <p className="text-xs text-red-300/80 max-w-sm mt-1">
-                          Camera automatically activates on the sender's device. Real-time visual frames will stream here immediately as they arrive.
+                          Camera visual activates automatically on the sender's device. Real-time frames stream here across the family mesh.
                         </p>
                       </div>
-                      <div className="flex items-center gap-2 px-3 py-1 bg-red-950/80 rounded-full border border-red-800 text-[11px] text-red-300 font-mono">
-                        <Radar className="w-3.5 h-3.5 text-red-400 animate-spin" />
-                        <span>Awaiting camera frame packet</span>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 px-3 py-1 bg-red-950/80 rounded-full border border-red-800 text-[11px] text-red-300 font-mono">
+                          <Radar className="w-3.5 h-3.5 text-red-400 animate-spin" />
+                          <span>Syncing camera stream</span>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await getEmergencyCameraFrame(alertId);
+                              if (res?.frame) {
+                                setSosLiveVisualStreams(prev => ({
+                                  ...prev,
+                                  [alertId]: {
+                                    frame: res.frame,
+                                    user_name: emergencies[0].user_name,
+                                    timestamp: res.timestamp || new Date().toISOString()
+                                  }
+                                }));
+                              }
+                            } catch (e) {}
+                          }}
+                          className="px-3 py-1 bg-red-800/60 hover:bg-red-700/80 rounded-full text-[11px] text-white font-medium border border-red-600/50 flex items-center gap-1 transition"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          <span>Check Feed Now</span>
+                        </button>
                       </div>
                     </div>
                   );

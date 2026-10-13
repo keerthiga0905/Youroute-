@@ -135,6 +135,7 @@ class ConnectionManager:
                 self.disconnect(connection)
 
 manager = ConnectionManager()
+latest_sos_frames: Dict[int, dict] = {}
 
 @router.websocket("/ws")
 @router.websocket("/ws/{token}")
@@ -164,6 +165,19 @@ async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = None):
                     data = json.loads(data_text)
                     msg_type = data.get("type")
                     if msg_type in ["SOS_CAMERA_FRAME", "SOS_CAMERA_STOP"]:
+                        ev_id = data.get("event_id")
+                        if msg_type == "SOS_CAMERA_FRAME" and ev_id:
+                            try:
+                                latest_sos_frames[int(ev_id)] = data
+                            except Exception:
+                                pass
+                        elif msg_type == "SOS_CAMERA_STOP" and ev_id:
+                            try:
+                                if int(ev_id) in latest_sos_frames:
+                                    del latest_sos_frames[int(ev_id)]
+                            except Exception:
+                                pass
+
                         # Relay live camera frames / stop signal to connected family members in real-time
                         if user_id and not data.get("user_id"):
                             data["user_id"] = user_id
@@ -919,6 +933,9 @@ async def resolve_emergency_alert(
     alert.resolved_at = datetime.utcnow()
     db.commit()
 
+    if event_id in latest_sos_frames:
+        del latest_sos_frames[event_id]
+
     resolver_name = current_user.full_name or current_user.email.split('@')[0]
 
     await manager.broadcast_to_family(
@@ -993,6 +1010,47 @@ async def upload_emergency_media(
         "expires_at": expires_at.isoformat()
     }
 
+# 15b. Push Emergency Live Camera Frame via HTTP fallback
+@router.post("/emergency/{event_id}/frame")
+async def post_emergency_camera_frame(
+    event_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    frame_data = payload.get("image") or payload.get("frame")
+    if frame_data:
+        frame_msg = {
+            "type": "SOS_CAMERA_FRAME",
+            "event_id": event_id,
+            "user_id": current_user.id,
+            "user_name": current_user.full_name or current_user.email.split('@')[0],
+            "image": frame_data,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        latest_sos_frames[event_id] = frame_msg
+        await manager.broadcast_to_family(
+            current_user.id,
+            frame_msg,
+            db,
+            include_sender=False
+        )
+    return {"status": "ok"}
+
+# 15c. Get Latest Emergency Live Camera Frame
+@router.get("/emergency/{event_id}/frame")
+def get_emergency_camera_frame(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    frame_info = latest_sos_frames.get(event_id)
+    return {
+        "event_id": event_id,
+        "frame": frame_info.get("image") if frame_info else None,
+        "timestamp": frame_info.get("timestamp") if frame_info else None
+    }
+
 # 16. Get Active Emergencies for Connected Family Members
 @router.get("/emergencies")
 def get_active_emergencies(
@@ -1033,6 +1091,8 @@ def get_active_emergencies(
         media_items = db.query(EmergencyMediaRecord).filter(EmergencyMediaRecord.event_id == a.id).all()
         media_list = [{"id": m.id, "type": m.media_type, "url": m.storage_url} for m in media_items]
 
+        live_frame_info = latest_sos_frames.get(a.id)
+
         results.append({
             "id": a.id,
             "user_id": a.user_id,
@@ -1048,7 +1108,9 @@ def get_active_emergencies(
             "acknowledged_at": a.acknowledged_at.isoformat() if a.acknowledged_at else None,
             "resolved_at": a.resolved_at.isoformat() if a.resolved_at else None,
             "acknowledged_by": acks,
-            "media_recordings": media_list
+            "media_recordings": media_list,
+            "live_camera_frame": live_frame_info.get("image") if live_frame_info else None,
+            "live_camera_time": live_frame_info.get("timestamp") if live_frame_info else None
         })
 
     return {"emergencies": results}

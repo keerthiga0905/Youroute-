@@ -308,6 +308,8 @@ export interface FamilyEmergencyAlert {
   acknowledged_by?: EmergencyAcknowledgement[];
   media_recordings?: EmergencyMediaItem[];
   media_records?: EmergencyMediaItem[];
+  live_camera_frame?: string;
+  live_camera_time?: string;
 }
 
 export interface FamilyQRInviteResponse {

@@ -447,6 +447,16 @@ export const uploadEmergencyMedia = async (eventId: number, blob: Blob, mediaTyp
   return response.data;
 };
 
+export const pushEmergencyCameraFrame = async (eventId: number, imageBase64: string) => {
+  const response = await api.post(`/family/emergency/${eventId}/frame`, { image: imageBase64 });
+  return response.data;
+};
+
+export const getEmergencyCameraFrame = async (eventId: number) => {
+  const response = await api.get(`/family/emergency/${eventId}/frame`);
+  return response.data;
+};
+
 export const getActiveEmergencies = async () => {
   const response = await api.get('/family/emergencies');
   return response.data;
