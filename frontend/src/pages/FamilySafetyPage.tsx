@@ -117,13 +117,13 @@ export const FamilySafetyPage: React.FC = () => {
   const [scanLoading, setScanLoading] = useState(false);
   const [scanSuccess, setScanSuccess] = useState<string | null>(null);
 
-  // 2-Second Hold Button SOS State
+  // 2-Second Click & Hold Button SOS State (Protects against accidental triggers)
   const [sosHoldProgress, setSosHoldProgress] = useState<number>(0);
+  const [isHoldingSos, setIsHoldingSos] = useState<boolean>(false);
+  const [showHoldHint, setShowHoldHint] = useState<boolean>(false);
   const holdTimerRef = useRef<any>(null);
-
-  // False Activation Protection (5-Second Countdown Modal)
-  const [sosCountdownActive, setSosCountdownActive] = useState<boolean>(false);
-  const [sosCountdownSeconds, setSosCountdownSeconds] = useState<number>(5);
+  const holdStartTimeRef = useRef<number>(0);
+  const hasTriggeredRef = useRef<boolean>(false);
   const [sosTriggerMethod, setSosTriggerMethod] = useState<'BUTTON' | 'VOICE' | 'AUTOMATED_SAFETY_TRIGGER'>('BUTTON');
 
   // Active Media Evidence Recording & Live Camera Broadcasting
@@ -344,20 +344,6 @@ export const FamilySafetyPage: React.FC = () => {
     }
   }, [activeTab]);
 
-  // Audio Speech & Siren Alarm Warning for Emergency SOS
-  useEffect(() => {
-    if (emergencies.length > 0) {
-      playEmergencyAlarmSound();
-      const alertItem = emergencies[0];
-      if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(`Emergency alert! ${alertItem.user_name || 'Father'} has triggered an SOS alert.`);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.2;
-        window.speechSynthesis.speak(utterance);
-      }
-    }
-  }, [emergencies.length]);
-
   // Track Device Location
   useEffect(() => {
     if (!mySharingStatus.sharing_enabled || !navigator.geolocation) return;
@@ -382,7 +368,7 @@ export const FamilySafetyPage: React.FC = () => {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [mySharingStatus.sharing_enabled, batteryLevel]);
 
-  // Voice SOS Speech Recognition
+  // Voice SOS Speech Recognition (Informs user to click & hold SOS button; does NOT auto-trigger)
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
@@ -398,7 +384,9 @@ export const FamilySafetyPage: React.FC = () => {
           const transcript = event.results[i][0].transcript.toLowerCase();
           console.log("Voice speech detected:", transcript);
           if (transcript.includes("help") || transcript.includes("emergency") || transcript.includes("sos") || transcript.includes("save me")) {
-            startEmergencyCountdown('VOICE');
+            // Do NOT trigger automatically. Remind user to click and hold the SOS button
+            setShowHoldHint(true);
+            setTimeout(() => setShowHoldHint(false), 3500);
           }
         }
       }
@@ -432,57 +420,6 @@ export const FamilySafetyPage: React.FC = () => {
       voice_detection_enabled: enable
     }).then(loadFamilyData);
   };
-
-  // Immediate SOS Trigger (Clicks or Holds)
-  const triggerSosImmediately = (method: 'BUTTON' | 'VOICE' | 'AUTOMATED_SAFETY_TRIGGER' = 'BUTTON') => {
-    setSosTriggerMethod(method);
-    executeEmergencyBroadcast(method);
-  };
-
-  // 2-Second Hold Button SOS Handler
-  const handleSosMouseDown = () => {
-    setSosHoldProgress(0);
-    let current = 0;
-    holdTimerRef.current = setInterval(() => {
-      current += 10;
-      setSosHoldProgress(current);
-      if (current >= 100) {
-        clearInterval(holdTimerRef.current);
-        triggerSosImmediately('BUTTON');
-      }
-    }, 100);
-  };
-
-  const handleSosMouseUp = () => {
-    if (holdTimerRef.current) {
-      clearInterval(holdTimerRef.current);
-    }
-    if (sosHoldProgress < 100) {
-      setSosHoldProgress(0);
-    }
-  };
-
-  // 5-Second False Activation Countdown (if voice or automated triggered)
-  const startEmergencyCountdown = (method: 'BUTTON' | 'VOICE' | 'AUTOMATED_SAFETY_TRIGGER') => {
-    setSosTriggerMethod(method);
-    setSosCountdownSeconds(5);
-    setSosCountdownActive(true);
-  };
-
-  useEffect(() => {
-    let timer: any = null;
-    if (sosCountdownActive) {
-      if (sosCountdownSeconds > 0) {
-        timer = setInterval(() => {
-          setSosCountdownSeconds(prev => prev - 1);
-        }, 1000);
-      } else {
-        setSosCountdownActive(false);
-        executeEmergencyBroadcast(sosTriggerMethod);
-      }
-    }
-    return () => clearInterval(timer);
-  }, [sosCountdownActive, sosCountdownSeconds, sosTriggerMethod]);
 
   // High-Tech Emergency HUD Stream Generator (Used when webcam hardware is unavailable/busy or awaiting frames)
   const createFallbackEmergencyStream = (userName: string, coords: { lat: number; lng: number }): MediaStream => {
@@ -681,6 +618,68 @@ export const FamilySafetyPage: React.FC = () => {
       loadFamilyData();
     } catch (err: any) {
       alert("Failed to send Emergency SOS alert.");
+    }
+  };
+
+  // 2-Second Click & Hold SOS Protection (Alert & alarm are dispatched ONLY when user clicks and holds for 2 full seconds)
+  const HOLD_DURATION_MS = 2000;
+
+  const startHoldTimer = (e?: React.SyntheticEvent) => {
+    if (holdTimerRef.current) {
+      clearInterval(holdTimerRef.current);
+    }
+    hasTriggeredRef.current = false;
+    setIsHoldingSos(true);
+    setSosHoldProgress(0);
+    setShowHoldHint(false);
+    holdStartTimeRef.current = Date.now();
+
+    if ('vibrate' in navigator) {
+      try { navigator.vibrate(40); } catch (e) {}
+    }
+
+    holdTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - holdStartTimeRef.current;
+      const progress = Math.min(100, Math.round((elapsed / HOLD_DURATION_MS) * 100));
+      setSosHoldProgress(progress);
+
+      if (progress >= 100) {
+        clearInterval(holdTimerRef.current);
+        holdTimerRef.current = null;
+        setIsHoldingSos(false);
+        hasTriggeredRef.current = true;
+
+        if ('vibrate' in navigator) {
+          try { navigator.vibrate([100, 50, 200]); } catch (e) {}
+        }
+
+        // Send alert, activate camera visual, and play siren alarm ONLY upon full click-and-hold
+        setSosTriggerMethod('BUTTON');
+        executeEmergencyBroadcast('BUTTON');
+
+        setTimeout(() => setSosHoldProgress(0), 400);
+      }
+    }, 40);
+  };
+
+  const cancelHoldTimer = () => {
+    if (holdTimerRef.current) {
+      clearInterval(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (isHoldingSos && !hasTriggeredRef.current && sosHoldProgress < 100) {
+      setShowHoldHint(true);
+      setTimeout(() => setShowHoldHint(false), 2500);
+    }
+    setIsHoldingSos(false);
+    setSosHoldProgress(0);
+  };
+
+  const handleButtonClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!hasTriggeredRef.current) {
+      setShowHoldHint(true);
+      setTimeout(() => setShowHoldHint(false), 2500);
     }
   };
 
@@ -1139,34 +1138,69 @@ export const FamilySafetyPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Emergency SOS 3D Trigger Button with Auto-Camera Activation */}
-              <div className="relative group select-none flex items-center gap-2">
+              {/* Emergency SOS Click & Hold 2S Protection Button */}
+              <div className="relative select-none">
                 <button
-                  onClick={() => triggerSosImmediately('BUTTON')}
-                  className={`relative px-5 py-3 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white font-serif font-black rounded-2xl shadow-[0_0_35px_rgba(239,68,68,0.8)] hover:shadow-[0_0_45px_rgba(239,68,68,1)] border-2 ${sosTestMode ? 'border-amber-400' : 'border-red-400'} transition-all transform active:scale-95 flex items-center gap-2 text-xs sm:text-sm overflow-hidden animate-pulse`}
-                  title="Click to trigger Emergency SOS and automatically turn on live camera broadcast"
+                  type="button"
+                  onMouseDown={startHoldTimer}
+                  onMouseUp={cancelHoldTimer}
+                  onMouseLeave={cancelHoldTimer}
+                  onTouchStart={startHoldTimer}
+                  onTouchEnd={cancelHoldTimer}
+                  onTouchCancel={cancelHoldTimer}
+                  onContextMenu={(e) => e.preventDefault()}
+                  onClick={handleButtonClick}
+                  className={`relative px-5 py-3 rounded-2xl font-serif font-black transition-all transform select-none overflow-hidden border-2 flex items-center gap-2.5 text-xs sm:text-sm shadow-xl active:scale-[0.98] ${
+                    isHoldingSos
+                      ? 'bg-red-950 border-red-400 shadow-[0_0_50px_rgba(239,68,68,1)] ring-4 ring-red-500/50'
+                      : 'bg-gradient-to-r from-red-700 via-rose-700 to-red-800 hover:from-red-600 hover:to-rose-600 border-red-500/80 shadow-[0_0_35px_rgba(239,68,68,0.7)]'
+                  } text-white`}
+                  title="Click and hold for 2 seconds to dispatch Emergency SOS"
                 >
-                  <Camera className="w-4 h-4 text-white animate-pulse" />
-                  <span>{sosTestMode ? 'TEST SOS NOW' : 'EMERGENCY SOS NOW'}</span>
-                </button>
-
-                <button
-                  onMouseDown={handleSosMouseDown}
-                  onMouseUp={handleSosMouseUp}
-                  onTouchStart={handleSosMouseDown}
-                  onTouchEnd={handleSosMouseUp}
-                  className="relative px-3.5 py-3 bg-red-900/80 hover:bg-red-800 text-white font-serif font-bold rounded-2xl border border-red-500/50 shadow-md transition-all transform active:scale-95 flex items-center gap-1.5 text-xs overflow-hidden"
-                  title="Hold for 2 seconds to activate SOS"
-                >
-                  <Radio className="w-3.5 h-3.5 text-red-300" />
-                  <span>HOLD 2S</span>
+                  {/* Glowing Animated Progress Fill (Left-to-Right smooth hold bar) */}
                   {sosHoldProgress > 0 && (
                     <div
-                      className="absolute inset-y-0 left-0 bg-white/40 transition-all duration-100 pointer-events-none"
+                      className="absolute inset-0 bg-gradient-to-r from-red-500 via-white to-red-400 opacity-60 transition-all pointer-events-none"
                       style={{ width: `${sosHoldProgress}%` }}
                     />
                   )}
+
+                  {/* Icon */}
+                  <div className="relative z-10 flex items-center justify-center">
+                    {isHoldingSos ? (
+                      <Radio className="w-4 h-4 text-white animate-spin" />
+                    ) : (
+                      <Camera className="w-4 h-4 text-white animate-pulse" />
+                    )}
+                  </div>
+
+                  {/* Text */}
+                  <div className="relative z-10 flex flex-col items-start leading-tight">
+                    <span className="tracking-wide">
+                      {isHoldingSos
+                        ? `HOLDING... ${Math.max(1, Math.ceil((100 - sosHoldProgress) * 0.02))}s`
+                        : sosTestMode
+                        ? '🧪 CLICK & HOLD 2S TO TEST'
+                        : '🚨 CLICK & HOLD 2S FOR EMERGENCY SOS'}
+                    </span>
+                    <span className="text-[9px] font-sans font-normal text-red-200/90 tracking-normal">
+                      {isHoldingSos ? `${sosHoldProgress}% completed` : 'Hold 2 seconds to activate • No accidental alarms'}
+                    </span>
+                  </div>
+
+                  {/* Badge */}
+                  <div className="relative z-10 ml-1 px-2 py-0.5 rounded-full bg-black/40 border border-white/20 text-[10px] font-mono font-bold">
+                    {isHoldingSos ? `${sosHoldProgress}%` : 'HOLD 2S'}
+                  </div>
                 </button>
+
+                {/* Hold Hint Tooltip (appears when clicked without holding) */}
+                {showHoldHint && (
+                  <div className="absolute -bottom-11 right-0 sm:right-auto sm:left-0 z-50 whitespace-nowrap bg-amber-500 text-slate-950 font-bold text-[11px] px-3 py-1.5 rounded-xl shadow-2xl border border-amber-300 animate-bounce flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-slate-950" />
+                    <span>Click and hold for 2 seconds to send SOS!</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
