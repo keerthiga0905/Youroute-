@@ -1,14 +1,19 @@
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from sqlalchemy.orm import Session
-from app.core.database import SessionLocal, engine, Base
+from app.core.database import Base, SessionLocal, engine
 from app.database.models import (
-    DataSourceRecord, CrimeDataRecord, AccidentRecord, StreetLightRecord, RoadDataRecord, SafetyIncident
+    AccidentRecord,
+    CrimeDataRecord,
+    DataSourceRecord,
+    SafetyIncident,
+    StreetLightRecord,
 )
+from sqlalchemy.orm import Session
+
 
 def seed_safety_incidents(db: Session):
     if db.query(SafetyIncident).count() > 0:
@@ -149,19 +154,6 @@ def seed_safety_incidents(db: Session):
     db.commit()
     print("TN Safety Incidents seeded.")
 
-def run_seeder():
-    db = SessionLocal()
-    try:
-        seed_data_sources(db)
-        seed_crime_data(db)
-        seed_accidents(db)
-        seed_street_lights(db)
-        seed_safety_incidents(db)
-        print("All Tamil Nadu safety datasets seeded successfully!")
-    finally:
-        db.close()
-
-
 # Initialize tables if not already created
 Base.metadata.create_all(bind=engine)
 
@@ -177,7 +169,7 @@ def seed_data_sources(db: Session):
             "last_updated": "2024-01-15",
             "coverage": "All 38 Districts of Tamil Nadu (Coimbatore, Chennai, Madurai, Salem, Trichy, etc.)",
             "license": "Government Open Data License - India (GODL)",
-            "retrieved_at": datetime.now(timezone.utc)
+            "retrieved_at": datetime.now(UTC)
         },
         {
             "source_name": "Ministry of Road Transport and Highways (MoRTH)",
@@ -186,7 +178,7 @@ def seed_data_sources(db: Session):
             "last_updated": "2024-03-10",
             "coverage": "National & State Highways in Tamil Nadu",
             "license": "Public Government Statistics",
-            "retrieved_at": datetime.now(timezone.utc)
+            "retrieved_at": datetime.now(UTC)
         },
         {
             "source_name": "OpenStreetMap (OSM) Overpass API",
@@ -195,7 +187,7 @@ def seed_data_sources(db: Session):
             "last_updated": "2024-08-20",
             "coverage": "Urban and Intercity Road Network of Tamil Nadu",
             "license": "Open Data Commons Open Database License (ODbL)",
-            "retrieved_at": datetime.now(timezone.utc)
+            "retrieved_at": datetime.now(UTC)
         },
         {
             "source_name": "Tamil Nadu Highways & Minor Ports Department",
@@ -204,7 +196,7 @@ def seed_data_sources(db: Session):
             "last_updated": "2024-02-01",
             "coverage": "Tamil Nadu State Transport Corridors",
             "license": "Public Domain / Official Publication",
-            "retrieved_at": datetime.now(timezone.utc)
+            "retrieved_at": datetime.now(UTC)
         }
     ]
 
@@ -291,6 +283,7 @@ def run_seeder():
         seed_crime_data(db)
         seed_accidents(db)
         seed_street_lights(db)
+        seed_safety_incidents(db)
         print("All Tamil Nadu safety datasets seeded successfully!")
     finally:
         db.close()

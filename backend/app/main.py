@@ -1,27 +1,45 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import settings
-from app.core.database import engine, Base
-from app.database import models
-from app.database.tn_safety_data_seeder import run_seeder
-from app.database.journey_seeder import run_journey_seeder
-from app.api import auth, routes, trips, saved_places, emergency, weather, model, geocode, safety, navigation, admin, family, location_share, journeys
+from fastapi.staticfiles import StaticFiles
 
+from app.api import (
+    admin,
+    auth,
+    emergency,
+    family,
+    geocode,
+    journeys,
+    location_share,
+    model,
+    navigation,
+    routes,
+    safety,
+    saved_places,
+    trips,
+    weather,
+)
+from app.core.config import settings
+from app.core.database import Base, engine
+from app.database import models as _models  # noqa: F401 (registers models with Base metadata)
+from app.database.journey_seeder import run_journey_seeder
 from app.database.migration import run_auth_migrations
+from app.database.tn_safety_data_seeder import run_seeder
 
 # Initialize Database tables, auth schema, and seed datasets
 Base.metadata.create_all(bind=engine)
 try:
     run_auth_migrations()
-except Exception as e:
+except Exception as e:  # noqa: BLE001
     print(f"[Migration Warning]: {e}")
 try:
     run_seeder()
-except Exception as e:
+except Exception as e:  # noqa: BLE001
     print(f"[Seeder Warning]: {e}")
 try:
     run_journey_seeder()
-except Exception as e:
+except Exception as e:  # noqa: BLE001
     print(f"[Journey Seeder Warning]: {e}")
 
 app = FastAPI(
@@ -40,8 +58,6 @@ app.add_middleware(
 )
 
 # Setup evidence upload directory and static mounting
-import os
-from fastapi.staticfiles import StaticFiles
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scratch", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/scratch/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")

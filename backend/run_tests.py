@@ -1,11 +1,16 @@
-import sys
 import os
+import sys
 
 backend_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, backend_dir)
 
-from tests.test_api import test_health_check, test_analyze_route, test_nearby_emergency, test_model_metrics
 from tests import test_auth_system
+from tests.test_api import (
+    test_analyze_route,
+    test_health_check,
+    test_model_metrics,
+    test_nearby_emergency,
+)
 
 if __name__ == "__main__":
     print("Running backend tests...")
@@ -41,4 +46,9 @@ if __name__ == "__main__":
     test_full_safely_mesh_lifecycle()
     print("[OK] Safely & Mesh Camera SOS & Real-Time Network Tests Passed!")
 
-    print("\nALL BACKEND, AUTHENTICATION & SOS CAMERA TESTS PASSED SUCCESSFULLY!")
+    print("\nRunning Plan Journey Mood-Based Travel Planner Tests...")
+    from tests.test_journey import run_all_journey_tests
+    run_all_journey_tests()
+    print("[OK] Plan Journey Travel Tests Passed!")
+
+    print("\nALL BACKEND, AUTHENTICATION, SOS CAMERA & JOURNEY TESTS PASSED SUCCESSFULLY!")
