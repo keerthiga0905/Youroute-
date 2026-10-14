@@ -451,3 +451,104 @@ class PasswordResetToken(Base):
     consumed_at = Column(DateTime, nullable=True)
 
     user = sa_relationship("User", back_populates="password_resets")
+
+# =========================================================================
+# PLAN JOURNEY — MOOD-BASED TRAVEL PLANNER MODELS
+# =========================================================================
+
+class Destination(Base):
+    __tablename__ = "destinations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False, index=True)
+    slug = Column(String(250), unique=True, index=True, nullable=False)
+    country = Column(String(100), default="India", index=True, nullable=False)
+    state = Column(String(100), index=True, nullable=True)
+    city = Column(String(100), index=True, nullable=False)
+    travel_scope = Column(String(20), default="DOMESTIC", index=True, nullable=False) # DOMESTIC or INTERNATIONAL
+    category = Column(String(100), index=True, nullable=False) # Temples, Hill Station, Beach, Heritage, Adventure, etc.
+    sub_category = Column(String(100), index=True, nullable=True) # Jyotirlinga, Murugan Temple, Shiva Temple, etc.
+    supported_moods = Column(JSON, default=list, nullable=False) # ["devotional", "peaceful", "nature"]
+    description = Column(Text, nullable=False)
+    why_recommended = Column(Text, nullable=True)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    hero_image_url = Column(String(500), nullable=False)
+    best_season = Column(String(100), default="October to March")
+    typical_duration = Column(String(50), default="1-2 Days")
+    approx_budget_tier = Column(String(50), default="Moderate") # Budget, Moderate, Luxury
+    approx_cost_per_day_inr = Column(Float, nullable=True)
+    opening_hours = Column(String(150), nullable=True)
+    accessibility_info = Column(String(250), nullable=True)
+    official_website_url = Column(String(500), nullable=True)
+    source_attribution = Column(String(250), default="Official Tourism Authority")
+    is_popular = Column(Boolean, default=False, index=True)
+    is_featured = Column(Boolean, default=False, index=True)
+    is_hidden_gem = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    images = sa_relationship("DestinationImage", back_populates="destination", cascade="all, delete-orphan")
+
+class DestinationImage(Base):
+    __tablename__ = "destination_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    destination_id = Column(Integer, ForeignKey("destinations.id", ondelete="CASCADE"), nullable=False, index=True)
+    image_url = Column(String(500), nullable=False)
+    caption = Column(String(255), nullable=True)
+    attribution = Column(String(255), nullable=True)
+    source_url = Column(String(500), nullable=True)
+    is_primary = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    destination = sa_relationship("Destination", back_populates="images")
+
+class FavoriteDestination(Base):
+    __tablename__ = "favorite_destinations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    destination_id = Column(Integer, ForeignKey("destinations.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = sa_relationship("User")
+    destination = sa_relationship("Destination")
+
+class PlannedJourneyTrip(Base):
+    __tablename__ = "planned_journey_trips"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    primary_mood = Column(String(100), nullable=True)
+    travel_scope = Column(String(20), default="DOMESTIC")
+    total_distance_km = Column(Float, default=0.0)
+    total_duration_mins = Column(Float, default=0.0)
+    start_date = Column(String(50), nullable=True)
+    end_date = Column(String(50), nullable=True)
+    status = Column(String(50), default="PLANNED") # PLANNED, UPCOMING, COMPLETED
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = sa_relationship("User")
+    stops = sa_relationship("PlannedJourneyStop", back_populates="trip", cascade="all, delete-orphan", order_by="PlannedJourneyStop.stop_order")
+
+class PlannedJourneyStop(Base):
+    __tablename__ = "planned_journey_stops"
+
+    id = Column(Integer, primary_key=True, index=True)
+    trip_id = Column(Integer, ForeignKey("planned_journey_trips.id", ondelete="CASCADE"), nullable=False, index=True)
+    destination_id = Column(Integer, ForeignKey("destinations.id", ondelete="SET NULL"), nullable=True)
+    stop_order = Column(Integer, nullable=False)
+    custom_location_name = Column(String(200), nullable=True)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    notes = Column(String(500), nullable=True)
+    stay_duration_hours = Column(Float, default=2.0)
+    distance_from_prev_km = Column(Float, default=0.0)
+
+    trip = sa_relationship("PlannedJourneyTrip", back_populates="stops")
+    destination = sa_relationship("Destination")
+

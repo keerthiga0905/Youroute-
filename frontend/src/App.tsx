@@ -19,6 +19,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { FamilySafetyPage } from './pages/FamilySafetyPage';
 import { FamilyConsentPage } from './pages/FamilyConsentPage';
 import { LocationConsentPage } from './pages/LocationConsentPage';
+import { PlanJourneyPage } from './pages/PlanJourneyPage';
 
 export const App: React.FC = () => {
   return (
@@ -31,6 +32,7 @@ export const App: React.FC = () => {
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<HomePage />} />
+              <Route path="/plan-journey" element={<PlanJourneyPage />} />
               <Route path="/plan-route" element={<RouteResultsPage />} />
               <Route path="/results" element={<RouteResultsPage />} />
               <Route path="/help" element={<HelpAboutPage />} />

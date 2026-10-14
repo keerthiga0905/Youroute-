@@ -350,3 +350,119 @@ export interface FamilyQRVerification {
   expires_at: string;
   status?: string;
 }
+
+// ==========================================
+// PLAN JOURNEY — MOOD-BASED TRAVEL TYPES
+// ==========================================
+
+export interface MoodItem {
+  id: string;
+  title: string;
+  tagline: string;
+  description: string;
+  image_url: string;
+  icon_name: string;
+  badge?: string;
+}
+
+export interface DestinationImage {
+  id: number;
+  image_url: string;
+  caption?: string;
+  attribution?: string;
+  source_url?: string;
+  is_primary: boolean;
+}
+
+export interface Destination {
+  id: number;
+  name: string;
+  slug: string;
+  country: string;
+  state?: string;
+  city: string;
+  travel_scope: 'DOMESTIC' | 'INTERNATIONAL';
+  category: string;
+  sub_category?: string;
+  supported_moods: string[];
+  description: string;
+  why_recommended?: string;
+  latitude: number;
+  longitude: number;
+  hero_image_url: string;
+  best_season?: string;
+  typical_duration?: string;
+  approx_budget_tier?: 'Budget' | 'Moderate' | 'Luxury' | string;
+  approx_cost_per_day_inr?: number;
+  opening_hours?: string;
+  accessibility_info?: string;
+  official_website_url?: string;
+  source_attribution?: string;
+  is_popular: boolean;
+  is_featured: boolean;
+  is_hidden_gem: boolean;
+  is_favorite?: boolean;
+  images?: DestinationImage[];
+}
+
+export interface DestinationListResponse {
+  total: number;
+  page: number;
+  limit: number;
+  destinations: Destination[];
+}
+
+export interface DestinationWeatherResponse {
+  destination_id: number;
+  destination_name: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  weather: {
+    condition: string;
+    temperature: number;
+    humidity: number;
+    wind_speed: number;
+    rainfall?: number;
+    visibility?: number;
+    warning?: string;
+  };
+}
+
+export interface PlannedJourneyStop {
+  id?: number;
+  trip_id?: number;
+  destination_id?: number;
+  stop_order: number;
+  custom_location_name?: string;
+  latitude: number;
+  longitude: number;
+  notes?: string;
+  stay_duration_hours?: number;
+  distance_from_prev_km?: number;
+  destination?: Destination;
+}
+
+export interface PlannedJourneyTrip {
+  id: number;
+  user_id: number;
+  title: string;
+  description?: string;
+  primary_mood?: string;
+  travel_scope: 'DOMESTIC' | 'INTERNATIONAL';
+  total_distance_km: number;
+  total_duration_mins: number;
+  start_date?: string;
+  end_date?: string;
+  status: 'PLANNED' | 'UPCOMING' | 'COMPLETED';
+  created_at: string;
+  updated_at: string;
+  stops: PlannedJourneyStop[];
+}
+
+export interface FavoriteDestinationItem {
+  id: number;
+  destination_id: number;
+  created_at: string;
+  destination: Destination;
+}

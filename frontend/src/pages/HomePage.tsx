@@ -49,6 +49,19 @@ export const HomePage: React.FC = () => {
       sessionStorage.removeItem('family_target_name');
     }
 
+    // Check if destination was transferred from Plan Journey module
+    const journeyLat = sessionStorage.getItem('plan_journey_dest_lat');
+    const journeyLng = sessionStorage.getItem('plan_journey_dest_lng');
+    const journeyName = sessionStorage.getItem('plan_journey_dest_name');
+
+    if (journeyLat && journeyLng && journeyName) {
+      setDestInput(journeyName);
+      setDestCoords({ lat: parseFloat(journeyLat), lng: parseFloat(journeyLng) });
+      sessionStorage.removeItem('plan_journey_dest_lat');
+      sessionStorage.removeItem('plan_journey_dest_lng');
+      sessionStorage.removeItem('plan_journey_dest_name');
+    }
+
     // Load active family members for quick selection
     getFamilyMembers()
       .then((data) => {

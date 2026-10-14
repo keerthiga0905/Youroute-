@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Shield, Navigation, Compass, Bookmark, User as UserIcon, Users, LogIn, LogOut, QrCode } from 'lucide-react';
+import { Shield, Navigation, Compass, Bookmark, User as UserIcon, Users, LogIn, LogOut, QrCode, Sparkles } from 'lucide-react';
 import { getStoredUser, logoutUser } from '../services/api';
 import { User } from '../types';
 
@@ -30,6 +30,7 @@ export const Navbar: React.FC = () => {
 
   const navLinks = [
     { path: '/', label: 'Home', icon: Navigation },
+    { path: '/plan-journey', label: 'Plan Journey', icon: Sparkles },
     { path: '/plan-route', label: 'Plan Route', icon: Navigation },
     { path: '/family-safety', label: 'Safety & Mesh', icon: Users },
     { path: '/trips', label: 'My Trips', icon: Compass },

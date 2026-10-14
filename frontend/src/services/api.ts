@@ -1,5 +1,9 @@
 import axios from 'axios';
-import { RouteAnalyzeResponse, EmergencyPOI, SavedPlace, TripHistory, User } from '../types';
+import {
+  RouteAnalyzeResponse, EmergencyPOI, SavedPlace, TripHistory, User,
+  MoodItem, Destination, DestinationListResponse, DestinationWeatherResponse,
+  PlannedJourneyTrip, FavoriteDestinationItem
+} from '../types';
 
 const API_BASE_URL = '/api';
 
@@ -583,5 +587,167 @@ export const subscribePushNotification = async (payload: { endpoint: string; p25
 export const unsubscribePushNotification = async (endpoint: string) => {
   await ensureDemoSession();
   const response = await api.delete(`/family/push/unsubscribe?endpoint=${encodeURIComponent(endpoint)}`);
+  return response.data;
+};
+
+// ==========================================
+// PLAN JOURNEY API FUNCTIONS
+// ==========================================
+
+export const getMoods = async (): Promise<MoodItem[]> => {
+  const response = await api.get<MoodItem[]>('/journeys/moods');
+  return response.data;
+};
+
+export const getDestinations = async (params: {
+  mood?: string;
+  travel_scope?: 'DOMESTIC' | 'INTERNATIONAL';
+  country?: string;
+  state?: string;
+  city?: string;
+  category?: string;
+  sub_category?: string;
+  min_budget?: number;
+  max_budget?: number;
+  duration?: string;
+  season?: string;
+  search?: string;
+  popular_only?: boolean;
+  page?: number;
+  limit?: number;
+}): Promise<DestinationListResponse> => {
+  const cleanParams: Record<string, any> = {};
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== '' && v !== null) {
+      cleanParams[k] = v;
+    }
+  });
+  const response = await api.get<DestinationListResponse>('/journeys/destinations', { params: cleanParams });
+  return response.data;
+};
+
+export const getDestinationDetail = async (destinationId: number): Promise<Destination> => {
+  const response = await api.get<Destination>(`/journeys/destinations/${destinationId}`);
+  return response.data;
+};
+
+export const getRecommendations = async (params: {
+  mood?: string;
+  travel_scope?: 'DOMESTIC' | 'INTERNATIONAL';
+  budget_tier?: string;
+  user_lat?: number;
+  user_lng?: number;
+  limit?: number;
+}): Promise<Destination[]> => {
+  const cleanParams: Record<string, any> = {};
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== '' && v !== null) {
+      cleanParams[k] = v;
+    }
+  });
+  const response = await api.get<Destination[]>('/journeys/recommendations', { params: cleanParams });
+  return response.data;
+};
+
+export const getSpiritualDestinations = async (params: {
+  sub_category?: string;
+  travel_scope?: 'DOMESTIC' | 'INTERNATIONAL';
+}): Promise<Destination[]> => {
+  const cleanParams: Record<string, any> = {};
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== '' && v !== null) {
+      cleanParams[k] = v;
+    }
+  });
+  const response = await api.get<Destination[]>('/journeys/temples', { params: cleanParams });
+  return response.data;
+};
+
+export const getDestinationWeather = async (destinationId: number): Promise<DestinationWeatherResponse> => {
+  const response = await api.get<DestinationWeatherResponse>(`/journeys/weather/${destinationId}`);
+  return response.data;
+};
+
+export const getFavoriteDestinations = async (): Promise<FavoriteDestinationItem[]> => {
+  await ensureDemoSession();
+  const response = await api.get<FavoriteDestinationItem[]>('/journeys/favorites');
+  return response.data;
+};
+
+export const addFavoriteDestination = async (destinationId: number): Promise<{ message: string; id: number }> => {
+  await ensureDemoSession();
+  const response = await api.post(`/journeys/favorites/${destinationId}`);
+  return response.data;
+};
+
+export const removeFavoriteDestination = async (destinationId: number): Promise<{ message: string }> => {
+  await ensureDemoSession();
+  const response = await api.delete(`/journeys/favorites/${destinationId}`);
+  return response.data;
+};
+
+export const getPlannedTrips = async (): Promise<PlannedJourneyTrip[]> => {
+  await ensureDemoSession();
+  const response = await api.get<PlannedJourneyTrip[]>('/journeys/trips');
+  return response.data;
+};
+
+export const getPlannedTripDetail = async (tripId: number): Promise<PlannedJourneyTrip> => {
+  await ensureDemoSession();
+  const response = await api.get<PlannedJourneyTrip>(`/journeys/trips/${tripId}`);
+  return response.data;
+};
+
+export const createPlannedTrip = async (payload: {
+  title: string;
+  description?: string;
+  primary_mood?: string;
+  travel_scope?: 'DOMESTIC' | 'INTERNATIONAL';
+  start_date?: string;
+  end_date?: string;
+  stops: Array<{
+    destination_id?: number;
+    custom_location_name?: string;
+    latitude: number;
+    longitude: number;
+    stop_order: number;
+    stay_duration_hours?: number;
+    notes?: string;
+  }>;
+}): Promise<PlannedJourneyTrip> => {
+  await ensureDemoSession();
+  const response = await api.post<PlannedJourneyTrip>('/journeys/trips', payload);
+  return response.data;
+};
+
+export const updatePlannedTrip = async (
+  tripId: number,
+  payload: {
+    title?: string;
+    description?: string;
+    primary_mood?: string;
+    travel_scope?: 'DOMESTIC' | 'INTERNATIONAL';
+    start_date?: string;
+    end_date?: string;
+    status?: 'PLANNED' | 'UPCOMING' | 'COMPLETED';
+    stops?: Array<{
+      destination_id?: number;
+      custom_location_name?: string;
+      latitude: number;
+      longitude: number;
+      stop_order: number;
+      stay_duration_hours?: number;
+      notes?: string;
+    }>;
+  }
+): Promise<PlannedJourneyTrip> => {
+  await ensureDemoSession();
+  const response = await api.put<PlannedJourneyTrip>(`/journeys/trips/${tripId}`, payload);
+  return response.data;
+};
+
+export const deletePlannedTrip = async (tripId: number): Promise<{ message: string }> => {
+  await ensureDemoSession();
+  const response = await api.delete(`/journeys/trips/${tripId}`);
   return response.data;
 };

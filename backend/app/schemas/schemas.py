@@ -423,5 +423,134 @@ class LocationShareRequestResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# --- Plan Journey Schemas ---
+class DestinationImageSchema(BaseModel):
+    id: Optional[int] = None
+    image_url: str
+    caption: Optional[str] = None
+    attribution: Optional[str] = None
+    source_url: Optional[str] = None
+    is_primary: bool = False
 
+    class Config:
+        from_attributes = True
 
+class DestinationResponse(BaseModel):
+    id: int
+    name: str
+    slug: str
+    country: str
+    state: Optional[str] = None
+    city: str
+    travel_scope: str
+    category: str
+    sub_category: Optional[str] = None
+    supported_moods: List[str] = []
+    description: str
+    why_recommended: Optional[str] = None
+    latitude: float
+    longitude: float
+    hero_image_url: str
+    best_season: Optional[str] = None
+    typical_duration: Optional[str] = None
+    approx_budget_tier: Optional[str] = None
+    approx_cost_per_day_inr: Optional[float] = None
+    opening_hours: Optional[str] = None
+    accessibility_info: Optional[str] = None
+    official_website_url: Optional[str] = None
+    source_attribution: Optional[str] = None
+    is_popular: bool = False
+    is_featured: bool = False
+    is_hidden_gem: bool = False
+    is_favorite: Optional[bool] = False
+    images: List[DestinationImageSchema] = []
+
+    class Config:
+        from_attributes = True
+
+class DestinationListResponse(BaseModel):
+    total: int
+    page: int
+    limit: int
+    destinations: List[DestinationResponse]
+
+class MoodItemSchema(BaseModel):
+    id: str
+    title: str
+    tagline: str
+    description: str
+    image_url: str
+    icon_name: str
+    badge: Optional[str] = None
+
+class PlannedJourneyStopCreate(BaseModel):
+    destination_id: Optional[int] = None
+    custom_location_name: Optional[str] = None
+    latitude: float
+    longitude: float
+    stop_order: int
+    stay_duration_hours: Optional[float] = 2.0
+    notes: Optional[str] = None
+
+class PlannedJourneyStopResponse(BaseModel):
+    id: int
+    trip_id: int
+    destination_id: Optional[int] = None
+    stop_order: int
+    custom_location_name: Optional[str] = None
+    latitude: float
+    longitude: float
+    notes: Optional[str] = None
+    stay_duration_hours: float = 2.0
+    distance_from_prev_km: float = 0.0
+    destination: Optional[DestinationResponse] = None
+
+    class Config:
+        from_attributes = True
+
+class PlannedJourneyTripCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    primary_mood: Optional[str] = None
+    travel_scope: Optional[str] = "DOMESTIC"
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    stops: List[PlannedJourneyStopCreate] = []
+
+class PlannedJourneyTripUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    primary_mood: Optional[str] = None
+    travel_scope: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    status: Optional[str] = None
+    stops: Optional[List[PlannedJourneyStopCreate]] = None
+
+class PlannedJourneyTripResponse(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    description: Optional[str] = None
+    primary_mood: Optional[str] = None
+    travel_scope: str
+    total_distance_km: float = 0.0
+    total_duration_mins: float = 0.0
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    stops: List[PlannedJourneyStopResponse] = []
+
+    class Config:
+        from_attributes = True
+
+class FavoriteDestinationResponse(BaseModel):
+    id: int
+    destination_id: int
+    created_at: datetime
+    destination: DestinationResponse
+
+    class Config:
+        from_attributes = True

@@ -4,7 +4,8 @@ from app.core.config import settings
 from app.core.database import engine, Base
 from app.database import models
 from app.database.tn_safety_data_seeder import run_seeder
-from app.api import auth, routes, trips, saved_places, emergency, weather, model, geocode, safety, navigation, admin, family, location_share
+from app.database.journey_seeder import run_journey_seeder
+from app.api import auth, routes, trips, saved_places, emergency, weather, model, geocode, safety, navigation, admin, family, location_share, journeys
 
 from app.database.migration import run_auth_migrations
 
@@ -18,6 +19,10 @@ try:
     run_seeder()
 except Exception as e:
     print(f"[Seeder Warning]: {e}")
+try:
+    run_journey_seeder()
+except Exception as e:
+    print(f"[Journey Seeder Warning]: {e}")
 
 app = FastAPI(
     title="SafeRoute AI — Personal Safety Route Engine",
@@ -55,6 +60,7 @@ app.include_router(weather.router, prefix=settings.API_V1_STR)
 app.include_router(model.router, prefix=settings.API_V1_STR)
 app.include_router(family.router, prefix=settings.API_V1_STR)
 app.include_router(location_share.router, prefix=settings.API_V1_STR)
+app.include_router(journeys.router, prefix=settings.API_V1_STR)
 
 
 
